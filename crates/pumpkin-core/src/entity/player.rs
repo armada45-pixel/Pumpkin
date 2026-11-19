@@ -2065,7 +2065,7 @@ impl Player {
                     original_item.registry_key.to_string(),
                     amount,
                 );
-            server.plugin_manager.fire_blocking(server, &mut event);
+            event = server.plugin_manager.fire_blocking(server, event);
             if event.cancelled {
                 return DamageResult::Untouched;
             }
@@ -2095,12 +2095,12 @@ impl Player {
         if result == DamageResult::Broken
             && let Some((server, player)) = player_context
         {
-            let mut event =
+            let event =
                 crate::plugin::api::events::player::player_item_break::PlayerItemBreakEvent::new(
                     player,
                     original_item.registry_key.to_string(),
                 );
-            server.plugin_manager.fire_blocking(&server, &mut event);
+            server.plugin_manager.fire_blocking(&server, event);
         }
         result
     }
@@ -2233,7 +2233,7 @@ impl Player {
                     forced,
                     cancelled: false,
                 };
-            server.plugin_manager.fire_blocking(&server, &mut event);
+            event = server.plugin_manager.fire_blocking(&server, event);
             if event.cancelled {
                 return false;
             }
@@ -2730,11 +2730,10 @@ impl Player {
         if let Some(server) = world.server.upgrade()
             && let Some(player_arc) = world.get_player_by_uuid(self.gameprofile.id)
         {
-            let mut event =
-                crate::plugin::api::events::player::player_bed::PlayerBedLeaveEvent::new(
-                    player_arc, bed_pos,
-                );
-            server.plugin_manager.fire_blocking(&server, &mut event);
+            let event = crate::plugin::api::events::player::player_bed::PlayerBedLeaveEvent::new(
+                player_arc, bed_pos,
+            );
+            server.plugin_manager.fire_blocking(&server, event);
         }
 
         let (bed, bed_state) = world.get_block_and_state_id(&bed_pos);
@@ -2980,7 +2979,7 @@ impl Player {
                     is_front: is_front_text,
                     cancelled: false,
                 };
-            server.plugin_manager.fire_blocking(&server, &mut event);
+            event = server.plugin_manager.fire_blocking(&server, event);
             if event.cancelled {
                 return;
             }
@@ -3022,7 +3021,7 @@ impl Player {
             velocity,
             cancelled: false,
         };
-        server.plugin_manager.fire_blocking(&server, &mut event);
+        event = server.plugin_manager.fire_blocking(&server, event);
         (!event.cancelled).then_some(event.velocity)
     }
 
@@ -3114,7 +3113,7 @@ impl Player {
                     player_arc,
                     link_strings,
                 );
-            server.plugin_manager.fire_blocking(&server, &mut event);
+            event = server.plugin_manager.fire_blocking(&server, event);
             if event.cancelled {
                 return;
             }
@@ -3186,9 +3185,7 @@ impl Player {
                             packet.id,
                             packet.payload.clone(),
                         );
-                        server_arc
-                            .plugin_manager
-                            .fire_blocking(&server_arc, &mut event);
+                        event = server_arc.plugin_manager.fire_blocking(&server_arc, event);
                         if !event.cancelled {
                             packet = RawPacket {
                                 id: event.packet_id,
@@ -3699,7 +3696,7 @@ impl Player {
                 entity.entity_id,
                 true,
             );
-        server.plugin_manager.fire_blocking(server, &mut event);
+        event = server.plugin_manager.fire_blocking(server, event);
         if event.cancelled || !event.is_gliding {
             return false;
         }
@@ -3717,7 +3714,7 @@ impl Player {
                 self.entity_id(),
                 false,
             );
-        server.plugin_manager.fire_blocking(&server, &mut event);
+        event = server.plugin_manager.fire_blocking(&server, event);
         !event.cancelled && !event.is_gliding
     }
 
@@ -3938,7 +3935,7 @@ impl Player {
         if let Some(server) = server {
             let mut event =
                 PacketSentEvent::new(self.clone(), packet_id, payload, Arc::new(packet));
-            server.plugin_manager.fire(&server, &mut event).await;
+            event = server.plugin_manager.fire(&server, event).await;
             return event.cancelled;
         }
         false
@@ -3951,7 +3948,7 @@ impl Player {
     ) -> PacketSentEvent {
         let mut event = PacketSentEvent::new_raw(self.clone(), packet_id, payload);
         if let Some(server) = self.world().server.upgrade() {
-            server.plugin_manager.fire(&server, &mut event).await;
+            event = server.plugin_manager.fire(&server, event).await;
         }
         event
     }
@@ -4174,7 +4171,7 @@ impl Player {
                 amount,
                 cancelled: false,
             };
-            server.plugin_manager.fire_blocking(&server, &mut event);
+            event = server.plugin_manager.fire_blocking(&server, event);
             if event.cancelled {
                 return;
             }
@@ -4979,13 +4976,13 @@ impl Player {
 
                 player.request_teleport(position, yaw, pitch);
 
-                let mut changed_world_event = crate::plugin::api::events::player::player_changed_world::PlayerChangedWorldEvent {
+                let changed_world_event = crate::plugin::api::events::player::player_changed_world::PlayerChangedWorldEvent {
                     player: player.clone(),
                     from_world: current_world,
                     to_world: new_world,
                     cancelled: false,
                 };
-                server.plugin_manager.fire(&server, &mut changed_world_event).await;
+                server.plugin_manager.fire(&server, changed_world_event).await;
             }
         }}
     }
@@ -5007,7 +5004,7 @@ impl Player {
                 to: position,
                 cancelled: false,
             };
-            server.plugin_manager.fire_blocking(&server, &mut event);
+            event = server.plugin_manager.fire_blocking(&server, event);
             if event.cancelled {
                 return;
             }
@@ -5194,7 +5191,7 @@ impl Player {
 
         let mut event = PlayerTransferEvent::new(self.clone(), host.to_owned(), port);
         let server = self.world().server.upgrade()?;
-        server.plugin_manager.fire_blocking(&server, &mut event);
+        event = server.plugin_manager.fire_blocking(&server, event);
         if event.cancelled {
             return None;
         }
@@ -5223,7 +5220,7 @@ impl Player {
                 player_arc,
                 message.clone().to_pretty_console(),
             );
-            server.plugin_manager.fire_blocking(&server, &mut event);
+            event = server.plugin_manager.fire_blocking(&server, event);
             if event.cancelled {
                 return;
             }
@@ -5307,9 +5304,9 @@ impl Player {
                 exhaustion,
             );
         if let Some(server) = self.world().server.upgrade() {
-            server
+            exhaustion_event = server
                 .plugin_manager
-                .fire_blocking(&server, &mut exhaustion_event);
+                .fire_blocking(&server, exhaustion_event);
         }
         if exhaustion_event.cancelled {
             return;
@@ -5548,9 +5545,7 @@ impl Player {
                 food_level,
             );
         if let Some(server) = self.world().server.upgrade() {
-            server
-                .plugin_manager
-                .fire_blocking(&server, &mut food_event);
+            food_event = server.plugin_manager.fire_blocking(&server, food_event);
         }
         if food_event.cancelled {
             return;
@@ -5869,7 +5864,7 @@ impl Player {
             previous_gamemode: self.gamemode.load(),
             cancelled: false,
         };
-        server.plugin_manager.fire_blocking(&server, &mut event);
+        event = server.plugin_manager.fire_blocking(&server, event);
         if event.cancelled {
             return false;
         }
@@ -6204,7 +6199,7 @@ impl Player {
                     dropped_stack.item.registry_key.to_string(),
                     dropped_stack.item_count,
                 );
-            server.plugin_manager.fire_blocking(&server, &mut event);
+            event = server.plugin_manager.fire_blocking(&server, event);
             if event.cancelled {
                 return;
             }
@@ -6236,7 +6231,7 @@ impl Player {
             && let Some(player_arc) = self.world().get_player_by_uuid(self.gameprofile.id)
         {
             let mut event = crate::plugin::api::events::player::player_swap_hands::PlayerSwapHandItemsEvent::new(player_arc);
-            server.plugin_manager.fire_blocking(&server, &mut event);
+            event = server.plugin_manager.fire_blocking(&server, event);
             if event.cancelled {
                 return;
             }
@@ -6501,12 +6496,12 @@ impl Player {
             && let Some(server) = self.world().server.upgrade()
             && let Some(player_arc) = self.world().get_player_by_uuid(self.gameprofile.id)
         {
-            let mut event = crate::plugin::api::events::player::player_level_change::PlayerLevelChangeEvent::new(
+            let event = crate::plugin::api::events::player::player_level_change::PlayerLevelChangeEvent::new(
                 player_arc,
                 old_level,
                 level,
             );
-            server.plugin_manager.fire_blocking(&server, &mut event);
+            server.plugin_manager.fire_blocking(&server, event);
         }
         // TODO: These should be atomic together, not isolated; make a struct containing these. can cause ABA issues
         self.experience_level.store(level, Ordering::Relaxed);
@@ -6716,7 +6711,7 @@ impl Player {
         let server = self.world().server.upgrade();
         if let Some(server) = server {
             let mut event = PlayerExpChangeEvent::new(self.clone(), added_points);
-            server.plugin_manager.fire_blocking(&server, &mut event);
+            event = server.plugin_manager.fire_blocking(&server, event);
             added_points = event.amount;
         }
 
@@ -6783,7 +6778,7 @@ impl Player {
                     exp_consumed: xp_used,
                     cancelled: false,
                 };
-            server.plugin_manager.fire_blocking(&server, &mut event);
+            event = server.plugin_manager.fire_blocking(&server, event);
             if event.cancelled {
                 return xp;
             }
@@ -6868,12 +6863,12 @@ impl Player {
         if let Some(server) = server
             && let Some(player_arc) = world.get_player_by_uuid(self.gameprofile.id)
         {
-            let mut event =
+            let event =
                 crate::plugin::api::events::player::inventory_close::InventoryCloseEvent::new(
                     &player_arc,
                     window_type,
                 );
-            server.plugin_manager.fire_blocking(&server, &mut event);
+            server.plugin_manager.fire_blocking(&server, event);
         }
 
         let player_screen_handler: Arc<std::sync::Mutex<dyn ScreenHandler>> =
@@ -6910,16 +6905,14 @@ impl Player {
     pub fn on_rename_item(self: &Arc<Self>, packet: &SRenameItem<'_>) {
         self.update_last_action_time();
 
-        let mut prepare_event =
+        let prepare_event =
             crate::plugin::api::events::inventory::prepare_anvil::PrepareAnvilEvent::new(
                 self.clone(),
                 packet.item_name.to_string(),
                 1,
             );
         if let Some(server) = self.world().server.upgrade() {
-            server
-                .plugin_manager
-                .fire_blocking(&server, &mut prepare_event);
+            server.plugin_manager.fire_blocking(&server, prepare_event);
         }
 
         let screen_handler_arc = self
@@ -6987,7 +6980,7 @@ impl Player {
                 crate::plugin::api::events::inventory::inventory_open::InventoryOpenEvent::new(
                     player_arc,
                 );
-            server.plugin_manager.fire_blocking(&server, &mut event);
+            event = server.plugin_manager.fire_blocking(&server, event);
             if event.cancelled {
                 return None;
             }
@@ -7080,7 +7073,7 @@ impl Player {
             vehicle.get_entity().entity_id,
             player_jump_pending_scale(jump_scale),
         );
-        server.plugin_manager.fire_blocking(server, &mut event);
+        event = server.plugin_manager.fire_blocking(server, event);
         if !event.cancelled {
             horse.handle_start_jump(jump_scale);
         }
@@ -7114,7 +7107,7 @@ impl Player {
                 crate::plugin::api::events::inventory::inventory_open::InventoryOpenEvent::new(
                     player_arc,
                 );
-            server.plugin_manager.fire_blocking(&server, &mut event);
+            event = server.plugin_manager.fire_blocking(&server, event);
             if event.cancelled {
                 return false;
             }
@@ -7378,9 +7371,7 @@ impl Player {
                 self.clone(),
             );
         if let Some(server) = self.world().server.upgrade() {
-            server
-                .plugin_manager
-                .fire_blocking(&server, &mut interact_event);
+            interact_event = server.plugin_manager.fire_blocking(&server, interact_event);
         }
         if interact_event.cancelled {
             cancel_screen();
@@ -7402,12 +7393,8 @@ impl Player {
                     stack.item.registry_key.to_string(),
                 );
             if let Some(server) = self.world().server.upgrade() {
-                server
-                    .plugin_manager
-                    .fire_blocking(&server, &mut craft_event);
-                server
-                    .plugin_manager
-                    .fire_blocking(&server, &mut prep_craft);
+                craft_event = server.plugin_manager.fire_blocking(&server, craft_event);
+                prep_craft = server.plugin_manager.fire_blocking(&server, prep_craft);
             }
             if craft_event.cancelled || prep_craft.cancelled {
                 cancel_screen();
@@ -7425,18 +7412,14 @@ impl Player {
                     self.clone(),
                     stack.item.registry_key.to_string(),
                 );
-            let mut prep_smith =
+            let prep_smith =
                 crate::plugin::api::events::inventory::prepare_smithing::PrepareSmithingEvent::new(
                     self.clone(),
                     Some(stack.item.registry_key.to_string()),
                 );
             if let Some(server) = self.world().server.upgrade() {
-                server
-                    .plugin_manager
-                    .fire_blocking(&server, &mut smith_event);
-                server
-                    .plugin_manager
-                    .fire_blocking(&server, &mut prep_smith);
+                smith_event = server.plugin_manager.fire_blocking(&server, smith_event);
+                server.plugin_manager.fire_blocking(&server, prep_smith);
             }
             if smith_event.cancelled {
                 cancel_screen();
@@ -7451,7 +7434,7 @@ impl Player {
             && let Some(ref stack) = clicked_item
             && !stack.is_empty()
         {
-            let mut extract_event =
+            let extract_event =
                 crate::plugin::api::events::inventory::furnace_extract::FurnaceExtractEvent::new(
                     self.clone(),
                     pumpkin_util::math::position::BlockPos::new(0, 0, 0),
@@ -7460,16 +7443,14 @@ impl Player {
                     0.0,
                 );
             if let Some(server) = self.world().server.upgrade() {
-                server
-                    .plugin_manager
-                    .fire_blocking(&server, &mut extract_event);
+                server.plugin_manager.fire_blocking(&server, extract_event);
             }
         }
 
         if window_type == Some(WindowType::Grindstone)
             && let Some(ref stack) = clicked_item
         {
-            let mut prep_grindstone =
+            let prep_grindstone =
                 crate::plugin::api::events::inventory::prepare_grindstone::PrepareGrindstoneEvent::new(
                     self.clone(),
                     if stack.is_empty() { None } else { Some(stack.item.registry_key.to_string()) },
@@ -7477,20 +7458,18 @@ impl Player {
             if let Some(server) = self.world().server.upgrade() {
                 server
                     .plugin_manager
-                    .fire_blocking(&server, &mut prep_grindstone);
+                    .fire_blocking(&server, prep_grindstone);
             }
         }
 
         if let Some(ref stack) = clicked_item {
-            let mut prep_result =
+            let prep_result =
                 crate::plugin::api::events::inventory::prepare_inventory_result::PrepareInventoryResultEvent::new(
                     self.clone(),
                     if stack.is_empty() { None } else { Some(stack.item.registry_key.to_string()) },
                 );
             if let Some(server) = self.world().server.upgrade() {
-                server
-                    .plugin_manager
-                    .fire_blocking(&server, &mut prep_result);
+                server.plugin_manager.fire_blocking(&server, prep_result);
             }
         }
 
@@ -7500,9 +7479,7 @@ impl Player {
                     self.clone(),
                 );
             if let Some(server) = self.world().server.upgrade() {
-                server
-                    .plugin_manager
-                    .fire_blocking(&server, &mut drag_event);
+                drag_event = server.plugin_manager.fire_blocking(&server, drag_event);
             }
             if drag_event.cancelled {
                 cancel_screen();
@@ -7584,9 +7561,7 @@ impl Player {
         let mut event = PlayerPermissionCheckEvent::new(self.clone(), node.to_string(), result);
         let server_arc = self.world().server.upgrade();
         if let Some(server_arc) = server_arc {
-            server_arc
-                .plugin_manager
-                .fire_blocking(&server_arc, &mut event);
+            event = server_arc.plugin_manager.fire_blocking(&server_arc, event);
         }
         event.result
     }
@@ -9496,7 +9471,7 @@ impl InventoryPlayer for Player {
             *enchantment_level,
             bookshelf_count,
         );
-        server.plugin_manager.fire_blocking(&server, &mut event);
+        event = server.plugin_manager.fire_blocking(&server, event);
         if event.cancelled {
             return true;
         }
@@ -9526,7 +9501,7 @@ impl InventoryPlayer for Player {
             exp_level_cost,
             enchantments_to_add.clone(),
         );
-        server.plugin_manager.fire_blocking(&server, &mut event);
+        event = server.plugin_manager.fire_blocking(&server, event);
         if event.cancelled {
             return true;
         }
