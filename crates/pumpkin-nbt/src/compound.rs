@@ -122,6 +122,11 @@ impl NbtCompound {
     /// Serializes the compound's entries followed by an end tag.
     pub fn serialize_content<W: NbtWriteHelper>(self, w: &mut W) -> Result<(), Error> {
         for (name, tag) in self.child_tags {
+            // A named End tag is not valid NBT: readers take it as the end of this compound
+            // and misread the rest (item components that have no NBT form return End).
+            if matches!(tag, NbtTag::End) {
+                continue;
+            }
             w.write_u8(tag.get_type_id())?;
             w.write_string(&name)?;
             tag.serialize_data(w)?;
@@ -471,5 +476,14 @@ mod tests {
         let mut short = NbtCompound::new();
         short.put("UUID", crate::tag::NbtTag::IntArray(vec![1, 2, 3]));
         assert_eq!(short.get_uuid("UUID"), None);
+    }
+
+    #[test]
+    fn end_tags_are_not_written_as_entries() {
+        let mut nbt = NbtCompound::new();
+        nbt.put("minecraft:tooltip_display", crate::tag::NbtTag::End);
+        nbt.put_int("a", 1);
+        let bytes = crate::Nbt::from(nbt).write_unnamed();
+        assert_eq!(&bytes[..], &[0x0A, 0x03, 0x00, 0x01, b'a', 0, 0, 0, 1, 0x00]);
     }
 }
