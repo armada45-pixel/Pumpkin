@@ -34,6 +34,11 @@ impl JavaClient {
             // A confirm for an older teleport arrives when a newer one was sent before the client
             // answered (two plugins teleporting at once). Vanilla ignores it and waits for the newest.
             TeleportResult::WrongId => {}
+            // Two teleports in a row can reach the client newest-first; the older confirm then arrives
+            // after the newest cleared the wait. Like vanilla, only a repeated confirm of the last id kicks.
+            TeleportResult::NotTeleporting
+                if confirm_teleport.teleport_id.0
+                    != player.teleport_id_count.load(std::sync::atomic::Ordering::Relaxed) => {}
             TeleportResult::NotTeleporting => {
                 self.try_kick(&TextComponent::text(
                     "Send Teleport confirm, but we did not teleport",

@@ -483,7 +483,7 @@ impl Server {
         F: Future + Send + 'static,
         F::Output: Send + 'static,
     {
-        self.tasks.spawn_on(task, &self.runtime)
+        self.tasks.spawn_on(pumpkin_world::level::enter_each_poll(&self.runtime, task), &self.runtime)
     }
 
     pub fn get_world_from_dimension(&self, dimension: &Dimension) -> Arc<World> {

@@ -996,7 +996,7 @@ impl BedrockClient {
         if self.close_token.is_cancelled() {
             None
         } else {
-            Some(self.tasks.spawn_on(task, &self.rt_handle))
+            Some(self.tasks.spawn_on(pumpkin_world::level::enter_each_poll(&self.rt_handle, task), &self.rt_handle))
         }
     }
 }

@@ -372,14 +372,15 @@ impl Level {
         F: Future + Send + 'static,
         F::Output: Send + 'static,
     {
-        if let Some(handle) = self.rt_handle.get() {
-            Some(self.tasks.spawn_on(task, handle))
+        let handle = if let Some(handle) = self.rt_handle.get() {
+            handle.clone()
         } else if let Ok(handle) = tokio::runtime::Handle::try_current() {
             let _ = self.rt_handle.set(handle.clone());
-            Some(self.tasks.spawn_on(task, &handle))
+            handle
         } else {
-            None
-        }
+            return None;
+        };
+        Some(self.tasks.spawn_on(enter_each_poll(&handle, task), &handle))
     }
 
     pub async fn shutdown(&self) {
@@ -1114,4 +1115,21 @@ mod tests {
         let end_level = Level::from_root_folder(&config, root.clone(), 0, Dimension::THE_END);
         assert_eq!(end_level.level_folder.dim_folder, root.join("DIM1"));
     }
+}
+
+/// Wraps `task` so it enters `handle`'s runtime on every poll.
+///
+/// A dynamically loaded plugin has its own copy of tokio whose thread-local runtime context is
+/// empty on this runtime's workers. Code from the plugin's copy that spawns here and then calls
+/// `Handle::current()` (or `spawn_blocking`) would panic with "no reactor running" without it.
+pub fn enter_each_poll<F: Future>(
+    handle: &tokio::runtime::Handle,
+    task: F,
+) -> impl Future<Output = F::Output> + use<F> {
+    let handle = handle.clone();
+    let mut task = Box::pin(task);
+    std::future::poll_fn(move |cx| {
+        let _guard = handle.enter();
+        task.as_mut().poll(cx)
+    })
 }
