@@ -31,9 +31,9 @@ impl JavaClient {
 
         match result {
             TeleportResult::Success => {}
-            TeleportResult::WrongId => {
-                self.try_kick(&TextComponent::text("Wrong teleport id"));
-            }
+            // A confirm for an older teleport arrives when a newer one was sent before the client
+            // answered (two plugins teleporting at once). Vanilla ignores it and waits for the newest.
+            TeleportResult::WrongId => {}
             TeleportResult::NotTeleporting => {
                 self.try_kick(&TextComponent::text(
                     "Send Teleport confirm, but we did not teleport",
