@@ -178,7 +178,9 @@ crossbeam = { version = "0.8", default-features = false, features = ["std"] }
 uuid = { version = "1.29", default-features = false, features = ["serde", "v3", "v4", "std"] }
 serde = { version = "1.0", default-features = false, features = ["derive", "std"] }
 serde_repr = { version = "0.1", default-features = false }
-serde_json = { version = "1.0", default-features = false, features = ["std"] }
+# Local: preserve_order changes serde_json::Map (BTreeMap vs IndexMap), and plugins such as PatchBukkit
+# share Pumpkin types that contain it (TextComponent -> HoverEvent -> Value). Both sides must agree.
+serde_json = { version = "1.0", default-features = false, features = ["std", "preserve_order"] }
 
 tempfile = { version = "3.27.0", default-features = false }
 proc-macro-error2 = { version = "2", default-features = false }
@@ -276,3 +278,6 @@ webpki-root-certs = { version = "1.0.11", default-features = false }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
 zip = { version = "9.2", default-features = false, features = ["deflate-flate2"] }
 
+# Local only: one arc-swap debt list shared by Pumpkin and its plugins (see vendor/arc-swap).
+[patch.crates-io]
+arc-swap = { path = "../vendor/arc-swap" }
