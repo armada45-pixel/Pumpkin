@@ -85,6 +85,7 @@ pub struct GenerationSchedule {
     listener: Arc<ChunkListener>,
     lighting_config: LightingEngineConfig,
     last_unload: std::time::Instant,
+    reported_stuck: HashSetType<ChunkPos>,
     generation_pool: Arc<rayon::ThreadPool>,
 }
 
@@ -105,6 +106,88 @@ impl GenerationSchedule {
                 .push(LoadedChunkChange::Unloaded(pos));
         }
         removed
+    }
+
+    /// Whether a holder holds a finished chunk that should be public but was never announced.
+    pub(crate) fn needs_publish(holder: &ChunkHolder) -> bool {
+        !holder.public
+            && holder.current_stage == StagedChunkEnum::Full
+            && holder.target_stage != StagedChunkEnum::None
+            && matches!(holder.chunk, Some(Chunk::Level(_)))
+    }
+
+    /// A holder can reach Full outside its own task: inside a neighbour's generation cache, or when its
+    /// stale task is dropped at dispatch. Nothing else announces it then, so `Level::fetch_chunk` (and the
+    /// player join waiting on it) would wait forever. Returns whether it published.
+    fn publish_if_full(&self, pos: ChunkPos, holder: &mut ChunkHolder) -> bool {
+        if !Self::needs_publish(holder) {
+            return false;
+        }
+        let Some(Chunk::Level(chunk)) = &holder.chunk else {
+            return false;
+        };
+        self.apply_lighting_override(chunk);
+        self.publish_chunk(pos, chunk.clone());
+        self.listener.process_new_chunk(pos, chunk);
+        holder.public = true;
+        true
+    }
+
+    /// Runs when the schedule is about to sleep: a force-ticketed chunk that is still not public now will
+    /// never be published by queued work. Publish it if it is finished, and log its state once either way.
+    fn check_force_tickets_before_idle(&mut self) {
+        let wanted = self.last_high_priority.clone();
+        self.reported_stuck.retain(|pos| wanted.contains(pos));
+        for pos in wanted {
+            if self.public_chunk_map.contains_key(&pos) || self.reported_stuck.contains(&pos) {
+                continue;
+            }
+            self.reported_stuck.insert(pos);
+            let Some(mut holder) = self.chunk_map.remove(&pos) else {
+                warn!("Force-ticketed chunk {pos:?} has no holder while the schedule is idle");
+                continue;
+            };
+            let tasks: Vec<String> = holder
+                .tasks
+                .iter()
+                .enumerate()
+                .filter(|(_, t)| !t.is_null())
+                .map(|(i, t)| match self.graph.nodes.get(*t) {
+                    Some(n) => format!(
+                        "{i}:deg{}/q{}/f{}/w{}",
+                        n.in_degree,
+                        n.in_queue,
+                        n.in_flight,
+                        self.waiting_for_chunks.contains(t)
+                    ),
+                    None => format!("{i}:dangling"),
+                })
+                .collect();
+            let chunk = match &holder.chunk {
+                None => "none".to_string(),
+                Some(Chunk::Level(_)) => "level".to_string(),
+                Some(Chunk::Proto(p)) => format!("proto {:?}", p.stage),
+            };
+            let published = self.publish_if_full(pos, &mut holder);
+            warn!(
+                "Force-ticketed chunk {pos:?} not public while the schedule is idle (published now: {published}): \
+                 target {:?} dependency {:?} current {:?} chunk {chunk} occupied {} occupied_by {} unload {} tasks [{}]",
+                holder.target_stage,
+                holder.dependency_stage,
+                holder.current_stage,
+                if holder.occupied.is_null() {
+                    "null"
+                } else if self.graph.nodes.contains_key(holder.occupied) {
+                    "live"
+                } else {
+                    "dangling"
+                },
+                if holder.occupied_by.is_null() { "null" } else { "set" },
+                self.unload_chunks.contains(&pos),
+                tasks.join(" ")
+            );
+            self.chunk_map.insert(pos, holder);
+        }
     }
 
     pub fn create(
@@ -180,6 +263,7 @@ impl GenerationSchedule {
                     chunk_map: HashMap::default(),
                     lighting_config,
                     last_unload: std::time::Instant::now(),
+                    reported_stuck: HashSetType::default(),
                     generation_pool,
                 };
                 scheduler.work(&level_sched);
@@ -1189,6 +1273,8 @@ impl GenerationSchedule {
                                 self.drop_satisfied_tasks(&mut holder, stage);
                                 holder.current_stage = stage;
                                 holder.chunk = Some(Chunk::Level(chunk));
+                                // Its own Full task was just dropped as satisfied: announce it here.
+                                self.publish_if_full(new_pos, &mut holder);
                             }
 
                             if !holder.occupied.is_null()
@@ -1423,7 +1509,7 @@ impl GenerationSchedule {
                         .and_then(|holder| holder.chunk.as_ref())
                         .map(Chunk::get_stage_id);
                     if actual_stage.is_some_and(|stage| stage >= node.stage as u8) {
-                        if let Some(holder) = self.chunk_map.get_mut(&node.pos) {
+                        if let Some(mut holder) = self.chunk_map.remove(&node.pos) {
                             holder.current_stage = holder
                                 .current_stage
                                 .max(StagedChunkEnum::from(actual_stage.expect("checked above")));
@@ -1431,6 +1517,9 @@ impl GenerationSchedule {
                             if *task_slot == task.1 {
                                 *task_slot = NodeKey::null();
                             }
+                            // The stale task was the one that would have published it.
+                            self.publish_if_full(node.pos, &mut holder);
+                            self.chunk_map.insert(node.pos, holder);
                         }
                         self.waiting_for_chunks.remove(&task.1);
                         self.drop_node(task.1);
@@ -1675,6 +1764,7 @@ impl GenerationSchedule {
                     }
                     debug_assert!(self.debug_check());
                     debug_assert_eq!(self.running_task_count, 0);
+                    self.check_force_tickets_before_idle();
                     if self.resort_work(self.send_level.wait_and_get(level)) {
                         self.garbage_collect_dependencies();
                         self.check_waiting_tasks();

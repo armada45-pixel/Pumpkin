@@ -512,3 +512,27 @@ fn center_chunk_pyramid_prioritized_ahead_of_outer_rings() {
         "Inner ring Full chunks must not be preempted by outer-ring Empty tasks"
     );
 }
+
+#[test]
+fn full_chunk_finished_outside_its_task_needs_publish() {
+    // A neighbour's generation cache returned this chunk finished: its own Full task was dropped as
+    // satisfied, so the schedule must announce it or a fetch waits forever (lobby join stall).
+    let mut holder = ChunkHolder {
+        target_stage: StagedChunkEnum::Full,
+        current_stage: StagedChunkEnum::Full,
+        chunk: Some(Chunk::Level(crate::chunk::ChunkData::empty_sync(0, 0))),
+        ..Default::default()
+    };
+    assert!(GenerationSchedule::needs_publish(&holder));
+
+    holder.public = true;
+    assert!(!GenerationSchedule::needs_publish(&holder), "already public");
+
+    holder.public = false;
+    holder.target_stage = StagedChunkEnum::None;
+    assert!(!GenerationSchedule::needs_publish(&holder), "dependency-only chunks stay private");
+
+    holder.target_stage = StagedChunkEnum::Full;
+    holder.current_stage = StagedChunkEnum::Features;
+    assert!(!GenerationSchedule::needs_publish(&holder), "not finished");
+}

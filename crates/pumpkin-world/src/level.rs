@@ -692,6 +692,11 @@ impl Level {
 
     async fn fetch_chunk(self: &Arc<Self>, pos: Vector2<i32>) -> SyncChunk {
         let recv = self.chunk_listener.add_single_chunk_listener(pos);
+        // Published between the caller's `loaded_chunks` check and the listener above: it is never
+        // announced again, and the force ticket below changes nothing for a chunk already at Full.
+        if let Some(chunk) = self.read_chunk_sync(&pos, Clone::clone) {
+            return chunk;
+        }
 
         {
             let mut lock = self
