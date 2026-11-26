@@ -845,8 +845,11 @@ interface player {
         get-interact-entity-hand: func () -> hand;
         /// True when the second input slot of the anvil is empty, valid inside a prepare-anvil-event handler.
         get-anvil-second-input-empty: func () -> bool;
-        /// Sets the cost at or above which this anvil shows "Too Expensive!" (vanilla 40), valid inside a
-        /// prepare-anvil-event handler; the anvil keeps the value for its session.
+        /// Sets the cost at or above which this anvil shows "Too Expensive!" (vanilla 40; values below 1 count as 1),
+        /// valid inside a prepare-anvil-event handler; the anvil keeps the value for its session.
+        /// The event fires on every recompute that produces a priced result for an enchantable input (not when the
+        /// result is empty or the input cannot hold enchantments), with the real cost. It runs while the anvil
+        /// screen is locked: handlers must not touch the player's open screen or inventory.
         set-anvil-max-repair-cost: func (max: u32);
 
         // Basic state

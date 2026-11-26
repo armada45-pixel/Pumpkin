@@ -1228,6 +1228,12 @@ impl pumpkin::plugin::world::HostWorldWithStore<PluginHostState> for HasSelf<Plu
     ) -> wasmtime::Result<Resource<pumpkin::plugin::world::Entity>> {
         let item = host.get().take(item)?;
         let stack = item.lock().await.clone();
+        if stack.is_empty() {
+            return Err(wasmtime::Error::msg("drop-item: item stack is empty"));
+        }
+        if !(pos.0.is_finite() && pos.1.is_finite() && pos.2.is_finite()) {
+            return Err(wasmtime::Error::msg("drop-item: position is not finite"));
+        }
         let (world, plugin) = world_and_plugin(host.get(), &world)?;
         let entity = pumpkin_core::entity::Entity::new(
             Arc::clone(&world),
@@ -1258,6 +1264,17 @@ impl pumpkin::plugin::world::HostWorldWithStore<PluginHostState> for HasSelf<Plu
     ) -> wasmtime::Result<Result<Resource<pumpkin::plugin::world::Entity>, String>> {
         let (world, plugin) = world_and_plugin(host.get(), &world)?;
         let internal_type = super::entity::from_wit_entity_type(entity_type)?;
+        if internal_type.id == pumpkin_data::entity::EntityType::PLAYER.id
+            || !internal_type.summonable
+        {
+            return Ok(Err(format!(
+                "entity type {} cannot be spawned",
+                internal_type.resource_name
+            )));
+        }
+        if !(pos.0.is_finite() && pos.1.is_finite() && pos.2.is_finite()) {
+            return Ok(Err("position is not finite".to_string()));
+        }
         let tag = match super::common::from_wit_nbt_tree(&nbt) {
             Ok(tag) => tag,
             Err(e) => return Ok(Err(e)),

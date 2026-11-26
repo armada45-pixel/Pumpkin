@@ -891,6 +891,7 @@ impl ToFromWasmEvent for PlayerInteractEntityEvent {
             .add(self.player.clone())
             .expect("failed to add player resource");
 
+        state.interact_entity_off_hand = self.hand == pumpkin_util::Hand::Left;
         Event::PlayerInteractEntityEvent(PlayerInteractEntityEventData {
             player,
             entity_id: self.target.get_entity().entity_id,
@@ -915,7 +916,11 @@ impl ToFromWasmEvent for PlayerInteractEntityEvent {
                     target_position: None,
                     sneaking: data.sneaking,
                     cancelled: data.cancelled,
-                    hand: pumpkin_util::Hand::Right,
+                    hand: if std::mem::take(&mut state.interact_entity_off_hand) {
+                        pumpkin_util::Hand::Left
+                    } else {
+                        pumpkin_util::Hand::Right
+                    },
                 }
             }
             _ => panic!("unexpected event type"),

@@ -561,6 +561,23 @@ impl PluginManager {
         loader: Arc<dyn PluginLoader>,
         path: PathBuf,
     ) -> Result<tokio::task::JoinHandle<()>, ManagerError> {
+        // Permission namespaces compare case-insensitively, so names that differ only in case would share one.
+        if self
+            .plugins
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .iter()
+            .any(|p| {
+                p.metadata.name != metadata.name
+                    && p.metadata.name.eq_ignore_ascii_case(&metadata.name)
+            })
+        {
+            return Err(ManagerError::DependencyError(format!(
+                "plugin name {} collides with an already loaded plugin that differs only in case",
+                metadata.name
+            )));
+        }
+
         // Mark plugin as loading
         self.plugin_states
             .write()

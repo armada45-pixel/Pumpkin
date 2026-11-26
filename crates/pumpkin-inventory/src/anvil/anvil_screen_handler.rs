@@ -435,12 +435,14 @@ impl AnvilScreenHandler {
             if price <= 0 {
                 result = ItemStack::EMPTY.clone();
             } else if let Some(hook) = self.prepare_hook.clone() {
+                // At least 1: the rename clamp below sets the cost to max - 1.
                 self.max_repair_cost = hook(
                     final_price,
                     self.item_name.as_deref().unwrap_or(""),
                     addition.is_empty(),
                     self.max_repair_cost,
-                );
+                )
+                .max(1);
             }
 
             if naming_cost == price && naming_cost > 0 {

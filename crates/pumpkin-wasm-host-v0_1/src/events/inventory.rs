@@ -363,7 +363,7 @@ impl ToFromWasmEvent for PrepareAnvilEvent {
             .add(self.player.clone())
             .expect("failed to add player resource");
         state.anvil_second_input_empty = self.second_input_empty;
-        state.anvil_max_repair_cost_request = None;
+        state.anvil_max_repair_cost_request = self.maximum_repair_cost;
 
         Event::PrepareAnvilEvent(PrepareAnvilEventData {
             player,
@@ -379,7 +379,7 @@ impl ToFromWasmEvent for PrepareAnvilEvent {
                 rename_text: data.rename_text,
                 repair_cost: data.repair_cost,
                 maximum_repair_cost: state.anvil_max_repair_cost_request.take(),
-                second_input_empty: state.anvil_second_input_empty,
+                second_input_empty: std::mem::take(&mut state.anvil_second_input_empty),
             },
             _ => panic!("unexpected event type"),
         }

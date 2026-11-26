@@ -916,7 +916,7 @@ impl ToFromWasmEvent for PlayerInteractEntityEvent {
                     target_position: None,
                     sneaking: data.sneaking,
                     cancelled: data.cancelled,
-                    hand: if state.interact_entity_off_hand {
+                    hand: if std::mem::take(&mut state.interact_entity_off_hand) {
                         pumpkin_util::Hand::Left
                     } else {
                         pumpkin_util::Hand::Right
