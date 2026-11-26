@@ -281,3 +281,5 @@ zip = { version = "9.2", default-features = false, features = ["deflate-flate2"]
 # Local only: one arc-swap debt list shared by Pumpkin and its plugins (see vendor/arc-swap).
 [patch.crates-io]
 arc-swap = { path = "../vendor/arc-swap" }
+# Local only: shard locks wake across the server and plugin copies of dashmap (see vendor/dashmap).
+dashmap = { path = "../vendor/dashmap" }
