@@ -30,6 +30,9 @@ pub struct PlayerInteractEntityEvent {
 
     /// Whether the player was sneaking during the interaction.
     pub sneaking: bool,
+
+    /// The hand used (`Right` is the main hand, `Left` the off hand). Bedrock always reports `Right`.
+    pub hand: pumpkin_util::Hand,
 }
 
 impl PlayerInteractEntityEvent {
@@ -39,6 +42,7 @@ impl PlayerInteractEntityEvent {
         action: ActionType,
         target_position: Option<Vector3<f64>>,
         sneaking: bool,
+        hand: pumpkin_util::Hand,
     ) -> Self {
         Self {
             player: Arc::clone(player),
@@ -46,6 +50,7 @@ impl PlayerInteractEntityEvent {
             action,
             target_position,
             sneaking,
+            hand,
             cancelled: false,
         }
     }

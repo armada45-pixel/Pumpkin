@@ -446,6 +446,7 @@ impl BedrockClient {
                     action,
                     None,
                     player.get_entity().is_sneaking(),
+                    pumpkin_util::Hand::Right,
                 );
                 server.plugin_manager.fire_blocking(&server, &mut event);
                 if event.cancelled {

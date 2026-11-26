@@ -378,7 +378,9 @@ interface event {
         entity-id: s32,
         action: entity-interaction-action,
         sneaking: bool,
-        cancelled: bool
+        cancelled: bool,
+        /// Hand used: right is the main hand, left the off hand.
+        hand: hand
     }
 
     record chunk-load-event-data {

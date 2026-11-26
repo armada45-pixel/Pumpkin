@@ -42,6 +42,10 @@ interface inventory {
         /// Returns the generic 36-slot inventory handle (hotbar + main storage).
         as-inventory: func() -> inventory;
 
+        /// Gives a stack with vanilla insertion priority (selected slot, off hand if it matches, then main storage),
+        /// syncing changed slots. Leftover is dropped at the player when `drop-leftover` (returns none), else returned.
+        give-item: func(item: item-stack, drop-leftover: bool) -> option<item-stack>;
+
         /// Returns the item currently held in the specified hand.
         get-item-in-hand: func(hand: hand) -> option<item-stack>;
         /// Sets the item in the specified hand.

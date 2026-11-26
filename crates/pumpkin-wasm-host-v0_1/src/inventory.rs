@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use wasmtime::component::Resource;
+use wasmtime::component::{Access, HasSelf, Resource};
 
 use crate::pumpkin::plugin::{
     common::Hand as WitHand,
@@ -532,5 +532,79 @@ impl HostPlayerInventory for PluginHostState {
 
     fn drop(&mut self, rep: Resource<WitPlayerInventory>) -> wasmtime::Result<()> {
         self.drop(rep)
+    }
+}
+
+impl crate::pumpkin::plugin::inventory::HostPlayerInventoryWithStore<PluginHostState>
+    for HasSelf<PluginHostState>
+{
+    async fn give_item(
+        mut host: Access<'_, PluginHostState, Self>,
+        res: Resource<WitPlayerInventory>,
+        item: Resource<WitHostItemStack>,
+        drop_leftover: bool,
+    ) -> wasmtime::Result<Option<Resource<WitHostItemStack>>> {
+        let item = host.get().take(item)?;
+        let mut stack = item.lock().await.clone();
+        if stack.is_empty() {
+            return Ok(None);
+        }
+        let player = host.get().get(&res)?.clone();
+        let inv = player.inventory();
+        let max_per_slot = stack
+            .get_max_stack_size()
+            .min(inv.get_max_count_per_stack());
+
+        if max_per_slot > 1 && stack.get_damage() == 0 {
+            let selected = inv.get_selected_slot() as usize;
+            let priority_slots = [selected, PlayerInventory::OFF_HAND_SLOT];
+            for slot in priority_slots.into_iter().chain(0..36) {
+                if stack.is_empty() {
+                    break;
+                }
+                let mut existing = inv.get_stack(slot);
+                if !existing.is_empty()
+                    && existing.item_count < max_per_slot
+                    && existing.are_items_and_components_equal(&stack)
+                {
+                    let transfer = stack.item_count.min(max_per_slot - existing.item_count);
+                    if transfer > 0 {
+                        existing.increment(transfer);
+                        stack.decrement(transfer);
+                        inv.set_stack(slot, existing.clone());
+                        player.sync_hand_slot(slot, existing);
+                    }
+                }
+            }
+        }
+
+        for slot in 0..36 {
+            if stack.is_empty() {
+                break;
+            }
+            if inv.get_stack(slot).is_empty() {
+                let inserted = stack.split(stack.item_count.min(max_per_slot));
+                inv.set_stack(slot, inserted.clone());
+                player.sync_hand_slot(slot, inserted);
+            }
+        }
+
+        if stack.is_empty() {
+            Ok(None)
+        } else if drop_leftover {
+            let plugin = host
+                .get()
+                .plugin
+                .as_ref()
+                .and_then(std::sync::Weak::upgrade)
+                .ok_or_else(|| wasmtime::Error::msg("Plugin instance not available"))?;
+            plugin
+                .store
+                .pump_blocking(&mut host, move || player.drop_item(stack))
+                .await?;
+            Ok(None)
+        } else {
+            Ok(Some(host.get().add(Arc::new(Mutex::new(stack)))?))
+        }
     }
 }

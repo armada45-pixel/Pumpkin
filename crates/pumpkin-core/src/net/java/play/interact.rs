@@ -50,6 +50,8 @@ impl JavaClient {
                     action,
                     interact.target_position,
                     sneaking,
+                    pumpkin_util::Hand::from_packet_id(interact.hand.map_or(0, |h| h.0))
+                        .unwrap_or(pumpkin_util::Hand::Right),
                 );
 
                 'after: {

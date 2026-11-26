@@ -478,6 +478,9 @@ interface %world {
 
         get-nearby-entities: func(x: f64, y: f64, z: f64) -> list<entity>;
 
+        /// The entity holding this entity's leash (a player or a leash knot), or none when not leashed.
+        get-leash-holder: func() -> option<entity>;
+
         get-vehicle: func() -> option<entity>;
         set-vehicle: func(vehicle: option<entity>);
         get-passengers: func() -> list<entity>;
@@ -899,6 +902,9 @@ interface %world {
 
         /// Spawns an entity of the specified type at the given position.
         spawn-entity: func(entity-type: entity-type, pos: position) -> entity;
+
+        /// Spawns a dropped item entity with the given stack at the exact position, zero velocity, default pickup delay.
+        drop-item: func(pos: position, item: item-stack) -> entity;
 
         /// Returns a list of all entities in this world.
         get-entities: func() -> list<entity>;

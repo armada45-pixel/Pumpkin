@@ -404,6 +404,25 @@ impl HostEntity for PluginHostState {
         Ok(result)
     }
 
+    fn get_leash_holder(
+        &mut self,
+        entity: Resource<Entity>,
+    ) -> wasmtime::Result<Option<Resource<Entity>>> {
+        let entity = self.get(&entity)?.clone();
+        let holder = entity
+            .get_entity()
+            .leashed_to
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+        holder
+            .map(|h| {
+                self.add(h)
+                    .map_err(|_| wasmtime::Error::msg("failed to add entity resource"))
+            })
+            .transpose()
+    }
+
     fn get_vehicle(
         &mut self,
         entity: Resource<Entity>,

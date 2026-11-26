@@ -1220,6 +1220,35 @@ impl pumpkin::plugin::world::HostWorldWithStore<PluginHostState> for HasSelf<Plu
         host.get().add(entity)
     }
 
+    async fn drop_item(
+        mut host: Access<'_, PluginHostState, Self>,
+        world: Resource<World>,
+        pos: pumpkin::plugin::common::Position,
+        item: Resource<crate::pumpkin::plugin::item_stack::ItemStack>,
+    ) -> wasmtime::Result<Resource<pumpkin::plugin::world::Entity>> {
+        let item = host.get().take(item)?;
+        let stack = item.lock().await.clone();
+        let (world, plugin) = world_and_plugin(host.get(), &world)?;
+        let entity = pumpkin_core::entity::Entity::new(
+            Arc::clone(&world),
+            pumpkin_util::math::vector3::Vector3::new(pos.0, pos.1, pos.2),
+            &pumpkin_data::entity::EntityType::ITEM,
+        );
+        let item_entity: Arc<dyn pumpkin_core::entity::EntityBase> =
+            Arc::new(pumpkin_core::entity::item::ItemEntity::new_with_velocity(
+                entity,
+                stack,
+                pumpkin_util::math::vector3::Vector3::default(),
+                pumpkin_core::entity::item::ItemEntity::DEFAULT_PICKUP_DELAY,
+            ));
+        let spawned = Arc::clone(&item_entity);
+        plugin
+            .store
+            .pump_blocking(&mut host, move || world.spawn_entity(spawned))
+            .await?;
+        host.get().add(item_entity)
+    }
+
     async fn strike_lightning(
         mut host: Access<'_, PluginHostState, Self>,
         world: Resource<World>,
