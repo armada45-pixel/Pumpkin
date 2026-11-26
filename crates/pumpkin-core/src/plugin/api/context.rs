@@ -278,10 +278,7 @@ impl Context {
     /// Register a permission for this plugin
     pub fn register_permission(&self, permission: Permission) -> Result<(), String> {
         // Ensure the permission has the correct namespace
-        if !permission
-            .node
-            .starts_with(&format!("{}:", self.metadata.name))
-        {
+        if !node_in_plugin_namespace(&permission.node, &self.metadata.name) {
             return Err(format!(
                 "Permission {} must use the plugin's namespace ({})",
                 permission.node, self.metadata.name
@@ -413,5 +410,28 @@ impl Context {
             Level::INFO
         };
         plugin_log!(level, &self.metadata.name, "{}", message);
+    }
+}
+
+/// True when `node` is `<Plugin>:...` (case-insensitive) or `<plugin>.…` with the lowercased plugin name as the
+/// first segment (Bukkit convention, so ported plugins keep their original nodes).
+fn node_in_plugin_namespace(node: &str, plugin_name: &str) -> bool {
+    let name = plugin_name.to_lowercase();
+    let lower = node.to_lowercase();
+    lower.starts_with(&format!("{name}:")) || lower.starts_with(&format!("{name}."))
+}
+
+#[cfg(test)]
+mod namespace_tests {
+    use super::node_in_plugin_namespace as ok;
+
+    #[test]
+    fn namespaces() {
+        assert!(ok("CommandGUI:use", "CommandGUI"));
+        assert!(ok("commandgui:use", "CommandGUI"));
+        assert!(ok("commandgui.use", "CommandGUI"));
+        assert!(!ok("other.use", "CommandGUI"));
+        assert!(!ok("other:use", "CommandGUI"));
+        assert!(!ok("commandguix.use", "CommandGUI"));
     }
 }
