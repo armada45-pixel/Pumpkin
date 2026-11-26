@@ -210,7 +210,7 @@ impl Player {
 
         let entity = self.get_entity();
         let last_pos = entity.pos.load();
-        let mut target = requested.position.map(|pos| {
+        let target = requested.position.map(|pos| {
             Vector3::new(
                 Self::clamp_horizontal(pos.x),
                 Self::clamp_vertical(pos.y),
