@@ -683,6 +683,13 @@ impl HostEntity for PluginHostState {
         Ok(res.map(|r| r.entity))
     }
 
+    fn save_nbt(&mut self, this: Resource<Entity>) -> wasmtime::Result<WitNbtTree> {
+        let entity = self.get(&this)?;
+        let mut nbt = pumpkin_nbt::compound::NbtCompound::new();
+        entity.write_nbt(&mut nbt);
+        Ok(super::common::to_wit_nbt_tree(pumpkin_nbt::tag::NbtTag::Compound(nbt)))
+    }
+
     fn set_custom_data(
         &mut self,
         this: Resource<Entity>,

@@ -507,6 +507,10 @@ interface %world {
         /// Returns the entity currently targeted in the looking direction within the specified distance.
         get-target-entity: func(max-distance: f64) -> option<entity>;
 
+        /// Writes the entity to an NBT compound the way the chunk saver does (id, UUID, Pos, Motion, health, name,
+        /// mob state, ...). Passengers are included only as far as the host writes them.
+        save-nbt: func() -> nbt-tree;
+
         /// Sets a namespaced custom data value on this entity.
         set-custom-data: func(namespace: string, key: string, value: nbt-tree);
         /// Returns a namespaced custom data value from this entity, if set.
@@ -905,6 +909,10 @@ interface %world {
 
         /// Spawns a dropped item entity with the given stack at the exact position, zero velocity, default pickup delay.
         drop-item: func(pos: position, item: item-stack) -> entity;
+
+        /// Spawns an entity of `entity-type` at `pos` and loads `nbt` (as written by `entity.save-nbt`) into it. The
+        /// saved UUID and position are ignored: the entity gets a new UUID and is placed at `pos`.
+        spawn-entity-from-nbt: func(entity-type: entity-type, pos: position, nbt: nbt-tree) -> result<entity, string>;
 
         /// Returns a list of all entities in this world.
         get-entities: func() -> list<entity>;

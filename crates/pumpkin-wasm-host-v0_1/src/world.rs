@@ -1249,6 +1249,42 @@ impl pumpkin::plugin::world::HostWorldWithStore<PluginHostState> for HasSelf<Plu
         host.get().add(item_entity)
     }
 
+    async fn spawn_entity_from_nbt(
+        mut host: Access<'_, PluginHostState, Self>,
+        world: Resource<World>,
+        entity_type: pumpkin::plugin::entity_types::EntityType,
+        pos: pumpkin::plugin::common::Position,
+        nbt: pumpkin::plugin::common::NbtTree,
+    ) -> wasmtime::Result<Result<Resource<pumpkin::plugin::world::Entity>, String>> {
+        let (world, plugin) = world_and_plugin(host.get(), &world)?;
+        let internal_type = super::entity::from_wit_entity_type(entity_type)?;
+        let tag = match super::common::from_wit_nbt_tree(&nbt) {
+            Ok(tag) => tag,
+            Err(e) => return Ok(Err(e)),
+        };
+        let pumpkin_nbt::tag::NbtTag::Compound(mut compound) = tag else {
+            return Ok(Err("entity NBT must be a compound".to_string()));
+        };
+        let position = pumpkin_util::math::vector3::Vector3::new(pos.0, pos.1, pos.2);
+        compound.put(
+            "Pos",
+            pumpkin_nbt::tag::NbtTag::List(vec![pos.0.into(), pos.1.into(), pos.2.into()]),
+        );
+        let entity = pumpkin_core::entity::r#type::from_type(
+            internal_type,
+            position,
+            &world,
+            uuid::Uuid::new_v4(),
+        );
+        entity.read_nbt_non_mut(&compound);
+        let spawned_entity = Arc::clone(&entity);
+        plugin
+            .store
+            .pump_blocking(&mut host, move || world.spawn_entity(spawned_entity))
+            .await?;
+        Ok(Ok(host.get().add(entity)?))
+    }
+
     async fn strike_lightning(
         mut host: Access<'_, PluginHostState, Self>,
         world: Resource<World>,
