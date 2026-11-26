@@ -1,5 +1,6 @@
 use crate::block::blocks::falling::FallingBlock;
 use crate::block::registry::BlockActionResult;
+use crate::plugin::api::events::inventory::prepare_anvil::PrepareAnvilEvent;
 use crate::block::{
     BlockBehaviour, GetScreenHandlerFactoryArgs, GetStateForNeighborUpdateArgs, NormalUseArgs,
     OnPlaceArgs, OnScheduledTickArgs, PathComputationType, PlacedArgs,
@@ -107,10 +108,33 @@ impl ScreenHandlerFactory for AnvilScreenFactory {
         &self,
         sync_id: u8,
         player_inventory: &Arc<PlayerInventory>,
-        _player: &dyn InventoryPlayer,
+        player: &dyn InventoryPlayer,
     ) -> Option<SharedScreenHandler> {
         let inventory = Arc::new(SimpleInventory::new(3));
-        let handler = AnvilScreenHandler::new(sync_id, player_inventory, inventory);
+        let mut handler = AnvilScreenHandler::new(sync_id, player_inventory, inventory);
+        if let Some(player) = player.as_any().downcast_ref::<crate::entity::player::Player>() {
+            let uuid = player.gameprofile.id;
+            let server = player.world().server.clone();
+            handler.prepare_hook = Some(Arc::new(
+                move |cost: i32, name: &str, second_empty: bool, max: i32| {
+                    let Some(server) = server.upgrade() else {
+                        return max;
+                    };
+                    let Some(player) = server.get_player_by_uuid(uuid) else {
+                        return max;
+                    };
+                    let mut event = PrepareAnvilEvent::new(
+                        player,
+                        name.to_string(),
+                        cost.max(0) as u32,
+                        max.max(0) as u32,
+                        second_empty,
+                    );
+                    server.plugin_manager.fire_blocking(&server, &mut event);
+                    event.maximum_repair_cost.min(i32::MAX as u32) as i32
+                },
+            ));
+        }
         let concrete_arc = Arc::new(Mutex::new(handler));
 
         Some(concrete_arc as SharedScreenHandler)

@@ -99,7 +99,16 @@ impl Slot for AnvilResultSlot {
     }
 }
 
+/// Called with (computed cost, rename text, second input empty, current maximum cost) every time a result is
+/// computed; returns the maximum cost to use. Set by the host so plugins can raise the "Too Expensive!" limit.
+pub type AnvilPrepareHook = Arc<dyn Fn(i32, &str, bool, i32) -> i32 + Send + Sync>;
+
+/// Vanilla "Too Expensive!" limit.
+pub const DEFAULT_MAX_REPAIR_COST: i32 = 40;
+
 pub struct AnvilScreenHandler {
+    pub max_repair_cost: i32,
+    pub prepare_hook: Option<AnvilPrepareHook>,
     pub inventory: Arc<dyn Inventory>,
     behaviour: ScreenHandlerBehaviour,
     pub item_name: Option<String>,
@@ -193,6 +202,8 @@ impl AnvilScreenHandler {
         let only_renaming = Arc::new(AtomicBool::new(false));
 
         let mut handler = Self {
+            max_repair_cost: DEFAULT_MAX_REPAIR_COST,
+            prepare_hook: None,
             inventory: inventory.clone(),
             behaviour: ScreenHandlerBehaviour::new(sync_id, Some(WindowType::Anvil)),
             item_name: None,
@@ -423,16 +434,25 @@ impl AnvilScreenHandler {
             self.set_repair_cost(final_price);
             if price <= 0 {
                 result = ItemStack::EMPTY.clone();
+            } else if let Some(hook) = self.prepare_hook.clone() {
+                self.max_repair_cost = hook(
+                    final_price,
+                    self.item_name.as_deref().unwrap_or(""),
+                    addition.is_empty(),
+                    self.max_repair_cost,
+                );
             }
 
             if naming_cost == price && naming_cost > 0 {
-                if self.repair_cost.load(Ordering::Relaxed) >= 40 {
-                    self.set_repair_cost(39);
+                if self.repair_cost.load(Ordering::Relaxed) >= self.max_repair_cost {
+                    self.set_repair_cost(self.max_repair_cost - 1);
                 }
                 self.only_renaming.store(true, Ordering::Relaxed);
             }
 
-            if self.repair_cost.load(Ordering::Relaxed) >= 40 && !has_infinite_materials {
+            if self.repair_cost.load(Ordering::Relaxed) >= self.max_repair_cost
+                && !has_infinite_materials
+            {
                 result = ItemStack::EMPTY.clone();
             }
 

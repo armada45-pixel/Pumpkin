@@ -6417,18 +6417,6 @@ impl Player {
     pub fn on_rename_item(self: &Arc<Self>, packet: &SRenameItem<'_>) {
         self.update_last_action_time();
 
-        let mut prepare_event =
-            crate::plugin::api::events::inventory::prepare_anvil::PrepareAnvilEvent::new(
-                self.clone(),
-                packet.item_name.to_string(),
-                1,
-            );
-        if let Some(server) = self.world().server.upgrade() {
-            server
-                .plugin_manager
-                .fire_blocking(&server, &mut prepare_event);
-        }
-
         let screen_handler_arc = self
             .current_screen_handler
             .lock()

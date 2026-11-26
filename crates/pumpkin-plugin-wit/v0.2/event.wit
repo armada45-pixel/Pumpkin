@@ -1779,7 +1779,12 @@ interface event {
     record prepare-anvil-event-data {
         player: player,
         rename-text: string,
-        repair-cost: u32
+        repair-cost: u32,
+        /// Cost at or above which the result is "Too Expensive!". Host default 40; the value the handler returns is
+        /// used for this anvil session.
+        maximum-repair-cost: u32,
+        /// True when the second input slot is empty.
+        second-input-empty: bool
     }
 
     record prepare-grindstone-event-data {
