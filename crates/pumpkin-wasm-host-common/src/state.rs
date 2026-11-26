@@ -134,6 +134,12 @@ pub struct PluginHostState {
     pub permissions: Vec<String>,
     pub name: Option<String>,
     pub marketplace_metadata: Option<crate::signature::PumpkinMetadata>,
+    /// Hand of the player-interact-entity event being handled (true = off hand).
+    pub interact_entity_off_hand: bool,
+    /// Second input slot of the anvil for the prepare-anvil event being handled.
+    pub anvil_second_input_empty: bool,
+    /// Maximum repair cost a handler asked for during the current prepare-anvil event.
+    pub anvil_max_repair_cost_request: Option<u32>,
 }
 
 impl Default for PluginHostState {
@@ -160,6 +166,9 @@ impl PluginHostState {
             permissions: Vec::new(),
             name: None,
             marketplace_metadata: None,
+            interact_entity_off_hand: false,
+            anvil_second_input_empty: false,
+            anvil_max_repair_cost_request: None,
         }
     }
 

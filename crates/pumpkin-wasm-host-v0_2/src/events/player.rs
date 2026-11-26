@@ -897,7 +897,6 @@ impl ToFromWasmEvent for PlayerInteractEntityEvent {
             action: to_wasm_entity_interaction_action(self.action),
             sneaking: self.sneaking,
             cancelled: self.cancelled,
-            hand: to_wasm_hand(self.hand),
         })
     }
 
@@ -916,7 +915,7 @@ impl ToFromWasmEvent for PlayerInteractEntityEvent {
                     target_position: None,
                     sneaking: data.sneaking,
                     cancelled: data.cancelled,
-                    hand: from_wasm_hand(data.hand),
+                    hand: pumpkin_util::Hand::Right,
                 }
             }
             _ => panic!("unexpected event type"),

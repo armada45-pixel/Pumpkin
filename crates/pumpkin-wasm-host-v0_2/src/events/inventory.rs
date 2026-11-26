@@ -367,8 +367,6 @@ impl ToFromWasmEvent for PrepareAnvilEvent {
             player,
             rename_text: self.rename_text.clone(),
             repair_cost: self.repair_cost,
-            maximum_repair_cost: self.maximum_repair_cost,
-            second_input_empty: self.second_input_empty,
         })
     }
 
@@ -378,8 +376,8 @@ impl ToFromWasmEvent for PrepareAnvilEvent {
                 player: consume_player(state, &data.player),
                 rename_text: data.rename_text,
                 repair_cost: data.repair_cost,
-                maximum_repair_cost: data.maximum_repair_cost,
-                second_input_empty: data.second_input_empty,
+                maximum_repair_cost: None,
+                second_input_empty: false,
             },
             _ => panic!("unexpected event type"),
         }

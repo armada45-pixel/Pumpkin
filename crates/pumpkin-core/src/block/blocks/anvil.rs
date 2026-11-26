@@ -127,11 +127,12 @@ impl ScreenHandlerFactory for AnvilScreenFactory {
                         player,
                         name.to_string(),
                         cost.max(0) as u32,
-                        max.max(0) as u32,
                         second_empty,
                     );
                     server.plugin_manager.fire_blocking(&server, &mut event);
-                    event.maximum_repair_cost.min(i32::MAX as u32) as i32
+                    event
+                        .maximum_repair_cost
+                        .map_or(max, |m| m.min(i32::MAX as u32) as i32)
                 },
             ));
         }

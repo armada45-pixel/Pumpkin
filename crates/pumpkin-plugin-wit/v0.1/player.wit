@@ -841,6 +841,13 @@ interface player {
         get-id: func () -> uuid;
         /// Returns the player's username.
         get-name: func () -> string;
+        /// Hand of the player-interact-entity event being handled: right is the main hand. Right outside such a handler.
+        get-interact-entity-hand: func () -> hand;
+        /// True when the second input slot of the anvil is empty, valid inside a prepare-anvil-event handler.
+        get-anvil-second-input-empty: func () -> bool;
+        /// Sets the cost at or above which this anvil shows "Too Expensive!" (vanilla 40), valid inside a
+        /// prepare-anvil-event handler; the anvil keeps the value for its session.
+        set-anvil-max-repair-cost: func (max: u32);
 
         // Basic state
 

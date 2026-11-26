@@ -1286,6 +1286,33 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         Ok(Uuid::to_wit(&player.gameprofile.id))
     }
 
+    fn get_interact_entity_hand(
+        &mut self,
+        _player: Resource<Player>,
+    ) -> wasmtime::Result<crate::pumpkin::plugin::common::Hand> {
+        Ok(if self.interact_entity_off_hand {
+            crate::pumpkin::plugin::common::Hand::Left
+        } else {
+            crate::pumpkin::plugin::common::Hand::Right
+        })
+    }
+
+    fn get_anvil_second_input_empty(
+        &mut self,
+        _player: Resource<Player>,
+    ) -> wasmtime::Result<bool> {
+        Ok(self.anvil_second_input_empty)
+    }
+
+    fn set_anvil_max_repair_cost(
+        &mut self,
+        _player: Resource<Player>,
+        max: u32,
+    ) -> wasmtime::Result<()> {
+        self.anvil_max_repair_cost_request = Some(max);
+        Ok(())
+    }
+
     fn get_name(&mut self, player: Resource<Player>) -> wasmtime::Result<String> {
         let player = self.get(&player)?;
         Ok(player.gameprofile.name.clone())
