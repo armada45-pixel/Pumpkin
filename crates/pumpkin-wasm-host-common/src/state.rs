@@ -140,6 +140,8 @@ pub struct PluginHostState {
     pub anvil_second_input_empty: bool,
     /// Maximum repair cost a handler asked for during the current prepare-anvil event.
     pub anvil_max_repair_cost_request: Option<u32>,
+    /// First input, second input and result of the prepare-anvil event being handled (not in the WIT record).
+    pub anvil_items: Option<Box<[pumpkin_data::item_stack::ItemStack; 3]>>,
 }
 
 impl Default for PluginHostState {
@@ -169,6 +171,7 @@ impl PluginHostState {
             interact_entity_off_hand: false,
             anvil_second_input_empty: false,
             anvil_max_repair_cost_request: None,
+            anvil_items: None,
         }
     }
 

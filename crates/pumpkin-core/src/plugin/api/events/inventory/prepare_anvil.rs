@@ -1,4 +1,5 @@
 use crate::entity::player::Player;
+use pumpkin_data::item_stack::ItemStack;
 use pumpkin_macros::Event;
 use std::sync::Arc;
 
@@ -20,22 +21,36 @@ pub struct PrepareAnvilEvent {
 
     /// True when the second input slot is empty.
     pub second_input_empty: bool,
+
+    /// The first input slot.
+    pub first_input: ItemStack,
+
+    /// The second input slot.
+    pub second_input: ItemStack,
+
+    /// The result the anvil prepared (before the "Too Expensive!" check).
+    pub result: ItemStack,
 }
 
 impl PrepareAnvilEvent {
     #[must_use]
-    pub const fn new(
+    pub fn new(
         player: Arc<Player>,
         rename_text: String,
         repair_cost: u32,
-        second_input_empty: bool,
+        first_input: ItemStack,
+        second_input: ItemStack,
+        result: ItemStack,
     ) -> Self {
         Self {
             player,
             rename_text,
             repair_cost,
             maximum_repair_cost: None,
-            second_input_empty,
+            second_input_empty: second_input.is_empty(),
+            first_input,
+            second_input,
+            result,
         }
     }
 }

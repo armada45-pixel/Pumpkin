@@ -1,6 +1,7 @@
 use crate::block::blocks::falling::FallingBlock;
 use crate::block::registry::BlockActionResult;
 use crate::plugin::api::events::inventory::prepare_anvil::PrepareAnvilEvent;
+use pumpkin_data::item_stack::ItemStack;
 use crate::block::{
     BlockBehaviour, GetScreenHandlerFactoryArgs, GetStateForNeighborUpdateArgs, NormalUseArgs,
     OnPlaceArgs, OnScheduledTickArgs, PathComputationType, PlacedArgs,
@@ -116,7 +117,12 @@ impl ScreenHandlerFactory for AnvilScreenFactory {
             let uuid = player.gameprofile.id;
             let server = player.world().server.clone();
             handler.prepare_hook = Some(Arc::new(
-                move |cost: i32, name: &str, second_empty: bool, max: i32| {
+                move |cost: i32,
+                      name: &str,
+                      first: &ItemStack,
+                      second: &ItemStack,
+                      result: &ItemStack,
+                      max: i32| {
                     let Some(server) = server.upgrade() else {
                         return max;
                     };
@@ -127,7 +133,9 @@ impl ScreenHandlerFactory for AnvilScreenFactory {
                         player,
                         name.to_string(),
                         cost.max(0) as u32,
-                        second_empty,
+                        first.clone(),
+                        second.clone(),
+                        result.clone(),
                     );
                     server.plugin_manager.fire_blocking(&server, &mut event);
                     event

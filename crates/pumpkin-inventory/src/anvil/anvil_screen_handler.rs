@@ -101,7 +101,9 @@ impl Slot for AnvilResultSlot {
 
 /// Called with (computed cost, rename text, second input empty, current maximum cost) every time a result is
 /// computed; returns the maximum cost to use. Set by the host so plugins can raise the "Too Expensive!" limit.
-pub type AnvilPrepareHook = Arc<dyn Fn(i32, &str, bool, i32) -> i32 + Send + Sync>;
+/// Arguments: cost, rename text, first input, second input, prepared result, current maximum cost.
+pub type AnvilPrepareHook =
+    Arc<dyn Fn(i32, &str, &ItemStack, &ItemStack, &ItemStack, i32) -> i32 + Send + Sync>;
 
 /// Vanilla "Too Expensive!" limit.
 pub const DEFAULT_MAX_REPAIR_COST: i32 = 40;
@@ -439,7 +441,9 @@ impl AnvilScreenHandler {
                 self.max_repair_cost = hook(
                     final_price,
                     self.item_name.as_deref().unwrap_or(""),
-                    addition.is_empty(),
+                    &input,
+                    &addition,
+                    &result,
                     self.max_repair_cost,
                 )
                 .max(1);

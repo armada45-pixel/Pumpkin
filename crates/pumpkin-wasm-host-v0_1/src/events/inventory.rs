@@ -364,6 +364,11 @@ impl ToFromWasmEvent for PrepareAnvilEvent {
             .expect("failed to add player resource");
         state.anvil_second_input_empty = self.second_input_empty;
         state.anvil_max_repair_cost_request = self.maximum_repair_cost;
+        state.anvil_items = Some(Box::new([
+            self.first_input.clone(),
+            self.second_input.clone(),
+            self.result.clone(),
+        ]));
 
         Event::PrepareAnvilEvent(PrepareAnvilEventData {
             player,
@@ -374,13 +379,22 @@ impl ToFromWasmEvent for PrepareAnvilEvent {
 
     fn from_wasm_event(event: Event, state: &mut PluginHostState) -> Self {
         match event {
-            Event::PrepareAnvilEvent(data) => Self {
-                player: consume_player(state, &data.player),
-                rename_text: data.rename_text,
-                repair_cost: data.repair_cost,
-                maximum_repair_cost: state.anvil_max_repair_cost_request.take(),
-                second_input_empty: std::mem::take(&mut state.anvil_second_input_empty),
-            },
+            Event::PrepareAnvilEvent(data) => {
+                let [first_input, second_input, result] = *state
+                    .anvil_items
+                    .take()
+                    .unwrap_or_else(|| Box::new(std::array::from_fn(|_| pumpkin_data::item_stack::ItemStack::EMPTY.clone())));
+                Self {
+                    player: consume_player(state, &data.player),
+                    rename_text: data.rename_text,
+                    repair_cost: data.repair_cost,
+                    maximum_repair_cost: state.anvil_max_repair_cost_request.take(),
+                    second_input_empty: std::mem::take(&mut state.anvil_second_input_empty),
+                    first_input,
+                    second_input,
+                    result,
+                }
+            }
             _ => panic!("unexpected event type"),
         }
     }
