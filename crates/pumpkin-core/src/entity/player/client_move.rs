@@ -248,11 +248,14 @@ impl Player {
                 return ClientMoveOutcome::Ignored;
             };
             let mut cancelled = false;
+            let mut redirect = None;
             send_cancellable_blocking! {{
                 server;
                 PlayerMoveEvent::new(player, last_pos, pos);
                 'after: {
-                    target = Some(event.to);
+                    if event.to != pos {
+                        redirect = Some(event.to);
+                    }
                 }
                 'cancelled: {
                     cancelled = true;
@@ -261,6 +264,23 @@ impl Player {
             if cancelled {
                 self.reject_client_move();
                 return ClientMoveOutcome::Rejected;
+            }
+            // Like CraftBukkit's handleMovePlayer: a destination a plugin changed is sent to the client as a
+            // teleport once every listener has run, instead of moving only the server-side position.
+            if let Some(to) = redirect {
+                if !(to.x.is_finite() && to.y.is_finite() && to.z.is_finite()) {
+                    self.reject_client_move();
+                    return ClientMoveOutcome::Rejected;
+                }
+                let yaw = requested.yaw.unwrap_or_else(|| entity.yaw.load());
+                let pitch = requested.pitch.unwrap_or_else(|| entity.pitch.load());
+                self.request_teleport(to, yaw, pitch);
+                // A teleport listener cancelled it: keep the client where the server is.
+                if entity.pos.load() != to {
+                    self.reject_client_move();
+                    return ClientMoveOutcome::Rejected;
+                }
+                return ClientMoveOutcome::Applied;
             }
         }
 
