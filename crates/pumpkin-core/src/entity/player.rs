@@ -4706,7 +4706,9 @@ impl Player {
 
                 self.on_screen_handler_opened(&self.player_screen_handler);
 
-                self.send_health();
+                // send_health() would be dropped here (the client is not loaded yet) and tick_health()
+                // would never resend unchanged values: forget the last sent ones, like vanilla's resetSentInfo.
+                self.last_sent_health.store(-1, Ordering::Relaxed);
 
                 new_world.send_world_info(&player);
                 new_world.send_center_chunk(&player).await;
