@@ -382,9 +382,15 @@ impl Context {
     pub fn init_log(&self) {
         // Same subscriber as the server: same format, level and log file. Falls back to a plugin-local stderr
         // logger only when the server has none (logging disabled).
-        if self.host_dispatch.downcast_ref::<tracing::subscriber::NoSubscriber>().is_none()
+        if self
+            .host_dispatch
+            .downcast_ref::<tracing::subscriber::NoSubscriber>()
+            .is_none()
             && tracing::dispatcher::set_global_default(self.host_dispatch.clone()).is_ok()
         {
+            // Unlike `Dispatch::new`, `set_global_default` does not recompute this binary's callsite interest and
+            // max level: they stayed at the NoSubscriber values (OFF) and every plugin event was dropped.
+            tracing::callsite::rebuild_interest_cache();
             return;
         }
         if let Some(Some((_logger_impl, level, config))) = self.logger.get() {
