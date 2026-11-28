@@ -27,8 +27,46 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tracing::{error, warn};
 use uuid::Uuid;
 
-#[derive(Clone, Serialize, Deserialize, Debug, Default)]
+/// When a criterion was obtained. Saved like vanilla (`"2025-12-29 21:27:06 +0700"`); also reads the
+/// `{"secs_since_epoch", "nanos_since_epoch"}` form older Pumpkin builds wrote.
+#[derive(Clone, Debug, Default)]
 pub struct CriterionProgress(pub Option<SystemTime>);
+
+const VANILLA_DATE: &[time::format_description::FormatItem<'static>] = time::macros::format_description!(
+    "[year]-[month]-[day] [hour]:[minute]:[second] [offset_hour sign:mandatory][offset_minute]"
+);
+
+impl Serialize for CriterionProgress {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self.0 {
+            Some(t) => time::OffsetDateTime::from(t)
+                .format(VANILLA_DATE)
+                .map_err(serde::ser::Error::custom)?
+                .serialize(serializer),
+            None => serializer.serialize_none(),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for CriterionProgress {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Raw {
+            Vanilla(String),
+            Legacy(SystemTime),
+        }
+        Ok(Self(match Option::<Raw>::deserialize(deserializer)? {
+            None => None,
+            Some(Raw::Legacy(t)) => Some(t),
+            Some(Raw::Vanilla(s)) => Some(
+                time::OffsetDateTime::parse(&s, VANILLA_DATE)
+                    .map_err(serde::de::Error::custom)?
+                    .into(),
+            ),
+        }))
+    }
+}
 
 impl CriterionProgress {
     pub fn grant(&mut self) {
@@ -130,17 +168,21 @@ impl AdvancementProgress {
     }
 }
 
+/// Vanilla layout: `{"criteria": {"<name>": "<date>"}, "done": bool}` (obtained criteria only).
 impl Serialize for AdvancementProgress {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        let map: HashMap<&Arc<str>, &CriterionProgress> = self
+        let criteria: HashMap<&Arc<str>, &CriterionProgress> = self
             .criteria
             .iter()
             .filter(|(_key, criteria)| criteria.is_done())
             .collect();
-        map.serialize(serializer)
+        let mut map = serializer.serialize_map(Some(2))?;
+        map.serialize_entry("criteria", &criteria)?;
+        map.serialize_entry("done", &self.is_done())?;
+        map.end()
     }
 }
 
@@ -149,7 +191,16 @@ impl<'de> Deserialize<'de> for AdvancementProgress {
     where
         D: Deserializer<'de>,
     {
-        let criteria = HashMap::<Arc<str>, CriterionProgress>::deserialize(deserializer)?;
+        // Vanilla `{"criteria": {...}, "done": ..}`, or the flat criterion map older Pumpkin builds wrote.
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Raw {
+            Vanilla {
+                criteria: HashMap<Arc<str>, CriterionProgress>,
+            },
+            Legacy(HashMap<Arc<str>, CriterionProgress>),
+        }
+        let (Raw::Vanilla { criteria } | Raw::Legacy(criteria)) = Raw::deserialize(deserializer)?;
         Ok(Self {
             criteria,
             requirements: AdvancementRequirement::default(),
@@ -246,6 +297,8 @@ pub struct PlayerAdvancement {
     pub player: Weak<Player>,
     /// Active criteria listeners keyed by trigger identifier (e.g. `minecraft:inventory_changed`).
     pub active_listeners: HashMap<&'static str, Vec<ActiveCriterionListener>>,
+    /// Entries of the saved file this server does not know (datapack advancements), written back unchanged.
+    pub unknown: serde_json::Map<String, serde_json::Value>,
 }
 
 /// The state changes produced by awarding an advancement criterion.
@@ -297,6 +350,7 @@ impl PlayerAdvancement {
             progress_changed: HashSet::default(),
             last_selected_tab: None,
             active_listeners: HashMap::default(),
+            unknown: serde_json::Map::new(),
         };
         pa.register_all_listeners();
         pa
@@ -444,21 +498,36 @@ impl PlayerAdvancement {
 
         let json = read(&self.path).map_err(AdvancementDataError::Io)?;
 
-        let loaded_data: HashMap<String, AdvancementProgress> =
+        let loaded_data: serde_json::Map<String, serde_json::Value> =
             serde_json::from_slice(&json).map_err(AdvancementDataError::Json)?;
 
         self.progress.clear();
-        for (advancement_id, mut progress) in loaded_data {
-            if let Some(advancement_ref) = Advancement::from_minecraft_name(&advancement_id) {
-                progress.update(AdvancementRequirement::from_const(
-                    advancement_ref.requirements,
-                ));
-                self.progress.insert(advancement_ref, progress);
-                self.progress_changed.insert(advancement_ref);
-                self.mark_for_visibility_update(advancement_ref);
-            } else {
-                warn!("The Advancement name {} is invalid", advancement_id);
+        self.unknown.clear();
+        for (advancement_id, value) in loaded_data {
+            if advancement_id == "DataVersion" {
+                continue;
             }
+            let Some(advancement_ref) = Advancement::from_minecraft_name(&advancement_id) else {
+                // Vanilla drops these; keep them so a datapack or the original server still has them.
+                self.unknown.insert(advancement_id, value);
+                continue;
+            };
+            let mut progress = match serde_json::from_value::<AdvancementProgress>(value) {
+                Ok(p) => p,
+                Err(e) => {
+                    warn!(
+                        "Skipping unreadable advancement {advancement_id} in {}: {e}",
+                        self.path.display()
+                    );
+                    continue;
+                }
+            };
+            progress.update(AdvancementRequirement::from_const(
+                advancement_ref.requirements,
+            ));
+            self.progress.insert(advancement_ref, progress);
+            self.progress_changed.insert(advancement_ref);
+            self.mark_for_visibility_update(advancement_ref);
         }
         self.register_all_listeners();
         Ok(())
@@ -693,11 +762,16 @@ impl Serialize for PlayerAdvancement {
             .filter(|(_key, value)| value.has_progress())
             .map(|(&key, val)| (key, val))
             .collect();
-        let mut map = serializer.serialize_map(Some(filtered_map.len()))?;
+        let mut map =
+            serializer.serialize_map(Some(filtered_map.len() + self.unknown.len() + 1))?;
 
         for (advancement, progress) in &filtered_map {
-            map.serialize_entry(&advancement.id, &progress.criteria)?;
+            map.serialize_entry(&advancement.id, progress)?;
         }
+        for (id, value) in &self.unknown {
+            map.serialize_entry(id, value)?;
+        }
+        map.serialize_entry("DataVersion", &pumpkin_world::CURRENT_MC_DATA_VERSION)?;
         map.end()
     }
 }
@@ -799,8 +873,41 @@ mod tests {
         // Content should be valid JSON
         let content = std::fs::read_to_string(&pa.path).unwrap();
         assert!(!content.is_empty(), "Saved file should not be empty");
-        let _: HashMap<String, AdvancementProgress> =
+        let saved: serde_json::Value =
             serde_json::from_str(&content).expect("Saved content should be valid JSON");
+        // Vanilla layout, so the original server can read it.
+        assert_eq!(saved["minecraft:story/root"]["done"], true);
+        assert!(saved["minecraft:story/root"]["criteria"]["crafting_table"].is_string());
+        assert!(saved["DataVersion"].is_i64());
+    }
+
+    #[tokio::test]
+    async fn load_vanilla_and_legacy_files() {
+        let temp_dir = tempdir().unwrap();
+        let manager = Arc::new(AdvancementManager::new(temp_dir.path(), true));
+        let id = Uuid::new_v4();
+        let mut pa = PlayerAdvancement::new(manager.clone(), id);
+        // Written by Paper (vanilla), with a datapack advancement this server does not know.
+        std::fs::write(&pa.path, r#"{"minecraft:story/root":{"criteria":{"crafting_table":"2025-12-29 21:27:06 +0700"},"done":true},"incendium:technical/x":{"criteria":{"a":"2025-12-29 21:27:06 +0700"},"done":true},"DataVersion":4671}"#).unwrap();
+        pa.load().expect("vanilla file loads");
+        assert!(pa.progress.map[Advancement::STORY_ROOT].is_done());
+        pa.save().await.unwrap();
+        let saved: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&pa.path).unwrap()).unwrap();
+        assert_eq!(
+            saved["minecraft:story/root"]["criteria"]["crafting_table"],
+            "2025-12-29 14:27:06 +0000"
+        );
+        assert_eq!(
+            saved["incendium:technical/x"]["done"], true,
+            "unknown entries are kept"
+        );
+
+        // Written by an older Pumpkin build (flat criterion map, SystemTime objects).
+        let mut pa = PlayerAdvancement::new(manager, id);
+        std::fs::write(&pa.path, r#"{"minecraft:story/root":{"crafting_table":{"secs_since_epoch":1795884219,"nanos_since_epoch":5}}}"#).unwrap();
+        pa.load().expect("legacy file loads");
+        assert!(pa.progress.map[Advancement::STORY_ROOT].is_done());
     }
 
     #[tokio::test]
@@ -961,9 +1068,10 @@ mod tests {
 
         // Verify both were saved
         let content = std::fs::read_to_string(&pa.path).unwrap();
-        let saved_data: HashMap<String, AdvancementProgress> =
+        let saved_data: serde_json::Map<String, serde_json::Value> =
             serde_json::from_str(&content).unwrap();
-        assert_eq!(saved_data.len(), 2, "Should have saved both advancements");
+        let advancements = saved_data.keys().filter(|k| *k != "DataVersion").count();
+        assert_eq!(advancements, 2, "Should have saved both advancements");
     }
 
     #[tokio::test]
