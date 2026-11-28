@@ -5,6 +5,7 @@ use std::borrow::Cow;
 use crate::codec::var_int::VarInt;
 use crate::ser::{NetworkReadExt, NetworkWriteExt, ReadingError, WritingError};
 use pumpkin_data::Enchantment;
+use pumpkin_data::banner_pattern::BannerPattern;
 use pumpkin_data::data_component::DataComponent;
 use pumpkin_data::data_component_impl::*;
 
@@ -2907,7 +2908,11 @@ impl DataComponentCodec<Self> for BannerPatternsImpl {
     fn serialize(&self, seq: &mut impl NetworkWriteExt) -> Result<(), WritingError> {
         seq.write_var_int(&VarInt::from(self.layers.len() as i32))?;
         for layer in &self.layers {
-            seq.write_var_int(&VarInt(0))?;
+            // BannerPatternLayers.STREAM_CODEC: a holder (registry id + 1; 0 would mean an inline pattern), then the dye.
+            let pattern = BannerPattern::from_name(&layer.pattern).ok_or_else(|| {
+                WritingError::Message(format!("Unknown banner pattern {:?}", layer.pattern))
+            })?;
+            seq.write_var_int(&VarInt(pattern.id() as i32 + 1))?;
             seq.write_var_int(&VarInt::from(layer.color.id() as i32))?;
         }
         Ok(())
@@ -2917,11 +2922,11 @@ impl DataComponentCodec<Self> for BannerPatternsImpl {
         let len = read_count(seq, usize::MAX)?;
         let mut layers = Vec::with_capacity(len.min(MAX_INITIAL_COLLECTION_SIZE));
         for _ in 0..len {
-            let _pattern = seq.get_var_int()?.0;
+            let pattern = read_holder_reference(seq, BannerPattern::all(), "banner pattern")?;
             let color_id = seq.get_var_int()?.0 as u8;
             let color = pumpkin_data::dye_color::DyeColor::by_id(color_id).unwrap_or_default();
             layers.push(pumpkin_data::data_component_impl::BannerPatternLayer {
-                pattern: String::new(),
+                pattern: format!("minecraft:{}", pattern.to_name()),
                 color,
             });
         }
@@ -3524,6 +3529,27 @@ mod tests {
         let decoded = ProfileImpl::deserialize(&mut encoded.as_slice()).unwrap();
         assert_eq!(decoded.name.as_deref(), Some("Notch"));
         assert_eq!(decoded.id, Some([1, 2, 3, 4]));
+    }
+
+    #[test]
+    fn banner_patterns_use_registry_holders() {
+        let layers = BannerPatternsImpl {
+            layers: vec![BannerPatternLayer {
+                pattern: "minecraft:creeper".to_string(),
+                color: pumpkin_data::dye_color::DyeColor::Red,
+            }],
+        };
+        let mut encoded = Vec::new();
+        layers.serialize(&mut encoded).unwrap();
+        let creeper = BannerPattern::Creeper.id() as u8 + 1;
+        let red = pumpkin_data::dye_color::DyeColor::Red.id();
+        assert_eq!(encoded, [1, creeper, red]);
+        let decoded = BannerPatternsImpl::deserialize(&mut encoded.as_slice()).unwrap();
+        assert_eq!(decoded.layers[0].pattern, "minecraft:creeper");
+        assert_eq!(
+            decoded.layers[0].color,
+            pumpkin_data::dye_color::DyeColor::Red
+        );
     }
 
     #[test]
