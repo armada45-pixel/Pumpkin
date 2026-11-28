@@ -28,10 +28,13 @@ impl ChunkListener {
 
     pub fn add_single_chunk_listener(&self, pos: ChunkPos) -> oneshot::Receiver<SyncChunk> {
         let (tx, rx) = oneshot::channel();
-        self.single
+        let mut single = self
+            .single
             .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .push((pos, tx));
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        // A waiter that gave up (fetch_chunk found the chunk already published) is never sent to: drop it here.
+        single.retain(|(_, tx)| !tx.is_closed());
+        single.push((pos, tx));
         rx
     }
 
