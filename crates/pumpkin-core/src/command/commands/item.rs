@@ -1,4 +1,5 @@
 use pumpkin_data::data_component_impl::EquipmentSlot;
+use pumpkin_data::item::Item;
 use pumpkin_data::translation;
 use pumpkin_inventory::Inventory;
 use pumpkin_inventory::screen_handler::InventoryPlayer;
@@ -80,7 +81,6 @@ impl CommandExecutor for BlockReplaceExecutor {
         item_stack.item_count = count as u8;
         inventory.set_stack(slot, item_stack);
 
-        let item_name = item.registry_key;
         let msg = TextComponent::translate_cross(
             translation::java::COMMANDS_ITEM_BLOCK_SET_SUCCESS,
             translation::java::COMMANDS_ITEM_BLOCK_SET_SUCCESS,
@@ -88,14 +88,7 @@ impl CommandExecutor for BlockReplaceExecutor {
                 TextComponent::text(pos.0.x.to_string()),
                 TextComponent::text(pos.0.y.to_string()),
                 TextComponent::text(pos.0.z.to_string()),
-                TextComponent::text("[")
-                    .add_child(item.translated_name())
-                    .add_child(TextComponent::text("]"))
-                    .hover_event(HoverEvent::ShowItem {
-                        id: item_name.to_string().into(),
-                        count: Some(count),
-                        components: None,
-                    }),
+                item_text(item, count),
             ],
         );
         context.source.send_feedback(msg, true);
@@ -230,21 +223,13 @@ impl CommandExecutor for EntityReplaceExecutor {
                 .create_without_context(TextComponent::text(mojang_slot.to_string())));
         }
 
-        let item_name = item.registry_key;
         let msg = if targets.len() == 1 {
             TextComponent::translate_cross(
                 translation::java::COMMANDS_ITEM_ENTITY_SET_SUCCESS_SINGLE,
                 translation::java::COMMANDS_ITEM_ENTITY_SET_SUCCESS_SINGLE,
                 [
                     targets[0].as_ref().get_display_name(),
-                    TextComponent::text("[")
-                        .add_child(item.translated_name())
-                        .add_child(TextComponent::text("]"))
-                        .hover_event(HoverEvent::ShowItem {
-                            id: item_name.to_string().into(),
-                            count: Some(count),
-                            components: None,
-                        }),
+                    item_text(item, count),
                 ],
             )
         } else {
@@ -253,14 +238,7 @@ impl CommandExecutor for EntityReplaceExecutor {
                 translation::java::COMMANDS_ITEM_ENTITY_SET_SUCCESS_MULTIPLE,
                 [
                     TextComponent::text(modified_count.to_string()),
-                    TextComponent::text("[")
-                        .add_child(item.translated_name())
-                        .add_child(TextComponent::text("]"))
-                        .hover_event(HoverEvent::ShowItem {
-                            id: item_name.to_string().into(),
-                            count: Some(count),
-                            components: None,
-                        }),
+                    item_text(item, count),
                 ],
             )
         };
@@ -268,6 +246,22 @@ impl CommandExecutor for EntityReplaceExecutor {
 
         Ok(modified_count)
     }
+}
+
+/// `[name]` with a `show_item` hover, like vanilla `ItemStack::getDisplayName`: no hover for air, which clients
+/// refuse to decode (the whole chat packet fails).
+fn item_text(item: &Item, count: i32) -> TextComponent {
+    let text = TextComponent::text("[")
+        .add_child(item.translated_name())
+        .add_child(TextComponent::text("]"));
+    if item.id == Item::AIR.id {
+        return text;
+    }
+    text.hover_event(HoverEvent::ShowItem {
+        id: item.registry_key.to_string().into(),
+        count: Some(count),
+        components: None,
+    })
 }
 
 fn block_item_node() -> RequiredArgumentBuilder {
