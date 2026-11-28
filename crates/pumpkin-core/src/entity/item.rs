@@ -755,6 +755,14 @@ impl EntityBase for ItemEntity {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clone();
+        // Plugins decide before the item moves (vanilla/Paper: the event fires only when some of it fits).
+        if !(player.is_creative() || player.inventory.has_room_for(&local_stack))
+            || !player
+                .living_entity
+                .fire_pickup_event(&self.entity, count_before.into())
+        {
+            return;
+        }
         let inserted = player.inventory.insert_stack_anywhere(&mut local_stack);
         let count_after = local_stack.item_count;
         let is_empty = local_stack.is_empty();
@@ -795,7 +803,7 @@ impl EntityBase for ItemEntity {
 
             player
                 .living_entity
-                .pickup(&self.entity, amount_picked_up.into());
+                .show_pickup(&self.entity, amount_picked_up.into());
 
             player
                 .current_screen_handler

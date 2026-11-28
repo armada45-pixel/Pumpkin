@@ -311,6 +311,13 @@ impl PlayerInventory {
         -1
     }
 
+    /// Whether at least one item of `stack` would fit (a matching stack with room, or an empty slot).
+    #[must_use]
+    pub fn has_room_for(&self, stack: &ItemStack) -> bool {
+        !stack.is_empty()
+            && (self.get_occupied_slot_with_room_for_stack(stack) >= 0 || self.get_empty_slot() >= 0)
+    }
+
     /// Inserts a stack into any available slot.
     ///
     /// # Arguments
