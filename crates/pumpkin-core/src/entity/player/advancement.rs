@@ -512,13 +512,15 @@ impl PlayerAdvancement {
                 self.unknown.insert(advancement_id, value);
                 continue;
             };
-            let mut progress = match serde_json::from_value::<AdvancementProgress>(value) {
+            let mut progress = match AdvancementProgress::deserialize(&value) {
                 Ok(p) => p,
                 Err(e) => {
                     warn!(
-                        "Skipping unreadable advancement {advancement_id} in {}: {e}",
+                        "Keeping unreadable advancement {advancement_id} in {} as is: {e}",
                         self.path.display()
                     );
+                    // Written back unchanged on save (unless the player earns it again), never dropped.
+                    self.unknown.insert(advancement_id, value);
                     continue;
                 }
             };
@@ -762,13 +764,18 @@ impl Serialize for PlayerAdvancement {
             .filter(|(_key, value)| value.has_progress())
             .map(|(&key, val)| (key, val))
             .collect();
-        let mut map =
-            serializer.serialize_map(Some(filtered_map.len() + self.unknown.len() + 1))?;
+        // An entry kept because it was unreadable is replaced once the player has progress on it again.
+        let unknown: Vec<_> = self
+            .unknown
+            .iter()
+            .filter(|(id, _)| !filtered_map.keys().any(|a| a.id.to_string() == id.as_str()))
+            .collect();
+        let mut map = serializer.serialize_map(Some(filtered_map.len() + unknown.len() + 1))?;
 
         for (advancement, progress) in &filtered_map {
             map.serialize_entry(&advancement.id, progress)?;
         }
-        for (id, value) in &self.unknown {
+        for (id, value) in unknown {
             map.serialize_entry(id, value)?;
         }
         map.serialize_entry("DataVersion", &pumpkin_world::CURRENT_MC_DATA_VERSION)?;
@@ -888,7 +895,7 @@ mod tests {
         let id = Uuid::new_v4();
         let mut pa = PlayerAdvancement::new(manager.clone(), id);
         // Written by Paper (vanilla), with a datapack advancement this server does not know.
-        std::fs::write(&pa.path, r#"{"minecraft:story/root":{"criteria":{"crafting_table":"2025-12-29 21:27:06 +0700"},"done":true},"incendium:technical/x":{"criteria":{"a":"2025-12-29 21:27:06 +0700"},"done":true},"DataVersion":4671}"#).unwrap();
+        std::fs::write(&pa.path, r#"{"minecraft:story/root":{"criteria":{"crafting_table":"2025-12-29 21:27:06 +0700"},"done":true},"incendium:technical/x":{"criteria":{"a":"2025-12-29 21:27:06 +0700"},"done":true},"minecraft:story/mine_stone":{"criteria":{"get_stone":"not a date"},"done":true},"DataVersion":4671}"#).unwrap();
         pa.load().expect("vanilla file loads");
         assert!(pa.progress.map[Advancement::STORY_ROOT].is_done());
         pa.save().await.unwrap();
@@ -901,6 +908,10 @@ mod tests {
         assert_eq!(
             saved["incendium:technical/x"]["done"], true,
             "unknown entries are kept"
+        );
+        assert_eq!(
+            saved["minecraft:story/mine_stone"]["criteria"]["get_stone"], "not a date",
+            "an unreadable entry is written back unchanged"
         );
 
         // Written by an older Pumpkin build (flat criterion map, SystemTime objects).

@@ -2906,14 +2906,18 @@ impl DataComponentCodec<Self> for NoteBlockSoundImpl {
 
 impl DataComponentCodec<Self> for BannerPatternsImpl {
     fn serialize(&self, seq: &mut impl NetworkWriteExt) -> Result<(), WritingError> {
-        seq.write_var_int(&VarInt::from(self.layers.len() as i32))?;
-        for layer in &self.layers {
-            // BannerPatternLayers.STREAM_CODEC: a holder (registry id + 1; 0 would mean an inline pattern), then the dye.
-            let pattern = BannerPattern::from_name(&layer.pattern).ok_or_else(|| {
-                WritingError::Message(format!("Unknown banner pattern {:?}", layer.pattern))
-            })?;
+        // BannerPatternLayers.STREAM_CODEC: a holder (registry id + 1; 0 would mean an inline pattern), then the dye.
+        // shortcut: a layer whose pattern is not in the registry (datapack, blank) is left out instead of sent inline;
+        // failing would drop the whole container packet.
+        let layers: Vec<_> = self
+            .layers
+            .iter()
+            .filter_map(|layer| BannerPattern::from_name(&layer.pattern).map(|p| (p, layer.color)))
+            .collect();
+        seq.write_var_int(&VarInt::from(layers.len() as i32))?;
+        for (pattern, color) in layers {
             seq.write_var_int(&VarInt(pattern.id() as i32 + 1))?;
-            seq.write_var_int(&VarInt::from(layer.color.id() as i32))?;
+            seq.write_var_int(&VarInt::from(color.id() as i32))?;
         }
         Ok(())
     }
@@ -3546,6 +3550,19 @@ mod tests {
         assert_eq!(encoded, [1, creeper, red]);
         let decoded = BannerPatternsImpl::deserialize(&mut encoded.as_slice()).unwrap();
         assert_eq!(decoded.layers[0].pattern, "minecraft:creeper");
+        let mut with_unknown = Vec::new();
+        BannerPatternsImpl {
+            layers: vec![
+                BannerPatternLayer {
+                    pattern: String::new(),
+                    color: pumpkin_data::dye_color::DyeColor::Blue,
+                },
+                decoded.layers[0].clone(),
+            ],
+        }
+        .serialize(&mut with_unknown)
+        .unwrap();
+        assert_eq!(with_unknown, encoded, "unknown layers are left out");
         assert_eq!(
             decoded.layers[0].color,
             pumpkin_data::dye_color::DyeColor::Red
