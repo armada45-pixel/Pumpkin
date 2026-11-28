@@ -579,6 +579,26 @@ impl World {
             .unwrap_or_default()
     }
 
+    /// The key saved as a player's `Dimension`: the dimension name for the server's own world of that
+    /// dimension, else `minecraft:<world name in lowercase>`, which is what Paper writes for a world a plugin
+    /// (Multiverse) created, so player files stay readable by both.
+    #[must_use]
+    pub fn level_key(&self) -> String {
+        let is_main = self.server.upgrade().is_none_or(|server| {
+            server
+                .worlds
+                .load()
+                .iter()
+                .find(|w| w.dimension == self.dimension)
+                .is_none_or(|w| std::ptr::eq(w.as_ref(), self))
+        });
+        if is_main {
+            self.dimension.minecraft_name.to_string()
+        } else {
+            format!("minecraft:{}", self.get_world_name().to_lowercase())
+        }
+    }
+
     /// Get the world folder name (e.g., `world`, `world_nether`, `world_the_end`).
     /// Falls back to "world" if the name cannot be determined.
     pub fn get_world_name(&self) -> &str {

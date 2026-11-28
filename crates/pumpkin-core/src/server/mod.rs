@@ -483,7 +483,10 @@ impl Server {
         F: Future + Send + 'static,
         F::Output: Send + 'static,
     {
-        self.tasks.spawn_on(pumpkin_world::level::enter_each_poll(&self.runtime, task), &self.runtime)
+        self.tasks.spawn_on(
+            pumpkin_world::level::enter_each_poll(&self.runtime, task),
+            &self.runtime,
+        )
     }
 
     pub fn get_world_from_dimension(&self, dimension: &Dimension) -> Arc<World> {
@@ -497,6 +500,20 @@ impl Server {
                 error!("No default world exists");
                 std::process::exit(1);
             })
+    }
+
+    /// The world a saved `Dimension` key names: a dimension (`minecraft:the_nether`), or a world a plugin created,
+    /// saved as `minecraft:<world name in lowercase>` (see [`World::level_key`]; Paper writes the same).
+    pub fn world_by_level_key(&self, key: &str) -> Option<Arc<World>> {
+        if let Some(dimension) = Dimension::from_name(key) {
+            return Some(self.get_world_from_dimension(dimension));
+        }
+        let name = key.strip_prefix("minecraft:").unwrap_or(key);
+        self.worlds
+            .load()
+            .iter()
+            .find(|w| w.get_world_name().eq_ignore_ascii_case(name))
+            .cloned()
     }
 
     pub fn create_world(self: &Arc<Self>, name: String, dimension: Dimension) -> Arc<World> {
@@ -691,8 +708,7 @@ impl Server {
 
         let (world, nbt) = if let Ok(Some(data)) = self.player_data_storage.load_data(&profile.id) {
             if let Some(dimension_key) = data.get_string("Dimension") {
-                if let Some(dimension) = Dimension::from_name(dimension_key) {
-                    let world = self.get_world_from_dimension(dimension);
+                if let Some(world) = self.world_by_level_key(dimension_key) {
                     (world, Some(data))
                 } else {
                     warn!("Invalid dimension key in player data: {dimension_key}");

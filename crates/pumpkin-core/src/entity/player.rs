@@ -7847,10 +7847,7 @@ impl EntityBase for Player {
                 .clamp(0, super::breath::DROWNING_INTERVAL - 1),
         );
 
-        nbt.put_string(
-            "Dimension",
-            self.world().dimension.minecraft_name.to_string(),
-        );
+        nbt.put_string("Dimension", self.world().level_key());
 
         if let Some(respawn) = self
             .respawn_point
