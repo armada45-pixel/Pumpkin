@@ -40,6 +40,9 @@ pub struct Context {
     pub plugin_manager: Arc<PluginManager>,
     pub permission_manager: Arc<PermissionManager>,
     pub logger: Arc<OnceLock<LoggerOption>>,
+    /// The server's tracing dispatcher. A native plugin is a separate binary with its own copy of tracing's
+    /// global state; `init_log` installs this there so plugin events reach the server's console and log file.
+    pub host_dispatch: tracing::Dispatch,
 }
 impl Context {
     /// Creates a new instance of `Context`.
@@ -60,6 +63,8 @@ impl Context {
         logger: Arc<OnceLock<LoggerOption>>,
     ) -> Self {
         let permission_manager = server.permission_manager.clone();
+        // Runs in the server binary, so this is the server's dispatcher, not a plugin's.
+        let host_dispatch = tracing::dispatcher::get_default(Clone::clone);
         Self {
             metadata,
             server,
@@ -67,6 +72,7 @@ impl Context {
             plugin_manager,
             permission_manager,
             logger,
+            host_dispatch,
         }
     }
 
@@ -374,6 +380,13 @@ impl Context {
 
     /// Initializes logging via the tracing crate for the plugin.
     pub fn init_log(&self) {
+        // Same subscriber as the server: same format, level and log file. Falls back to a plugin-local stderr
+        // logger only when the server has none (logging disabled).
+        if self.host_dispatch.downcast_ref::<tracing::subscriber::NoSubscriber>().is_none()
+            && tracing::dispatcher::set_global_default(self.host_dispatch.clone()).is_ok()
+        {
+            return;
+        }
         if let Some(Some((_logger_impl, level, config))) = self.logger.get() {
             let fmt_layer = fmt::layer()
                 .with_writer(std::io::stderr)
