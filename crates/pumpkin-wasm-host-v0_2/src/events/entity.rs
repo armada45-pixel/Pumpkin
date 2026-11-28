@@ -437,12 +437,22 @@ impl ToFromWasmEvent
         })
     }
 
+    // The WIT record has no item entity fields; keep ours and take only what a plugin may change.
+    fn apply_wasm_event(&mut self, event: Event, state: &mut PluginHostState) {
+        let returned = Self::from_wasm_event(event, state);
+        self.item_name = returned.item_name;
+        self.count = returned.count;
+        self.cancelled = returned.cancelled;
+    }
+
     fn from_wasm_event(event: Event, _state: &mut PluginHostState) -> Self {
         match event {
             Event::EntityPickupItemEvent(data) => Self {
                 entity_id: data.entity_id,
                 item_name: data.item_name,
                 count: data.count,
+                item_entity_id: 0,
+                item_position: pumpkin_util::math::vector3::Vector3::new(0.0, 0.0, 0.0),
                 cancelled: data.cancelled,
             },
             _ => panic!("unexpected event type"),

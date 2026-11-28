@@ -1117,12 +1117,7 @@ impl Mob for PiglinEntity {
                 stack.item_count.min(1)
             }
         };
-        if count == 0
-            || !self
-                .mob_entity
-                .living_entity
-                .pickup(item.get_entity(), u32::from(count))
-        {
+        if count == 0 || !self.mob_entity.living_entity.pickup(item, u32::from(count)) {
             return;
         }
         self.mob_entity.living_entity.on_item_pickup(item);

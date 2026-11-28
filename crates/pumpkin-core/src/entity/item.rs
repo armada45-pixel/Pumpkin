@@ -759,7 +759,7 @@ impl EntityBase for ItemEntity {
         if !(player.is_creative() || player.inventory.has_room_for(&local_stack))
             || !player
                 .living_entity
-                .fire_pickup_event(&self.entity, count_before.into())
+                .fire_pickup_event(self, count_before.into())
         {
             return;
         }

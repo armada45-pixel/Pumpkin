@@ -1083,7 +1083,7 @@ pub fn pick_up_item_as_equipment<M: Mob + ?Sized>(mob: &M, item: &crate::entity:
     };
     let to_equip = limit_for_slot(&slot, &mut stack);
     let living = &mob.get_mob_entity().living_entity;
-    if !living.pickup(item.get_entity(), u32::from(to_equip.item_count)) {
+    if !living.pickup(item, u32::from(to_equip.item_count)) {
         return;
     }
     living.on_item_pickup(item);

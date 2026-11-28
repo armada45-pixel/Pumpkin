@@ -1520,7 +1520,7 @@ impl Mob for VillagerEntity {
         );
         let taken = stack.item_count - remainder.item_count;
         let living = &self.mob_entity.living_entity;
-        if taken == 0 || !living.pickup(item.get_entity(), u32::from(taken)) {
+        if taken == 0 || !living.pickup(item, u32::from(taken)) {
             return;
         }
         let mut remainder = stack;

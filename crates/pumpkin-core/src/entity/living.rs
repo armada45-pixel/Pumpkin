@@ -769,21 +769,35 @@ impl LivingEntity {
 
     /// Picks up an item entity or XP orb: fires `EntityPickupItemEvent`, then shows the pickup.
     /// Returns `false` (and shows nothing) when a plugin cancelled it. Call it before taking the item.
-    pub fn pickup(&self, item: &Entity, stack_amount: u32) -> bool {
+    pub fn pickup(&self, item: &dyn EntityBase, stack_amount: u32) -> bool {
         if !self.fire_pickup_event(item, stack_amount) {
             return false;
         }
-        self.show_pickup(item, stack_amount);
+        self.show_pickup(item.get_entity(), stack_amount);
         true
     }
 
     /// Fires `EntityPickupItemEvent`; `false` when a plugin cancelled it.
-    pub fn fire_pickup_event(&self, item: &Entity, stack_amount: u32) -> bool {
+    pub fn fire_pickup_event(&self, item: &dyn EntityBase, stack_amount: u32) -> bool {
+        let item_name = item.get_item_entity().map_or_else(
+            || item.get_entity().entity_type.id.to_string(),
+            |item| {
+                item.get_item_stack()
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .item
+                    .registry_key
+                    .to_string()
+            },
+        );
+        let entity = item.get_entity();
         let mut pickup_event =
             crate::plugin::api::events::entity::entity_pickup_item::EntityPickupItemEvent::new(
                 self.entity.entity_id,
-                item.entity_type.id.to_string(),
+                item_name,
                 stack_amount as u8,
+                entity.entity_id,
+                entity.pos.load(),
             );
         if let Some(server) = self.entity.world.load().server.upgrade() {
             server

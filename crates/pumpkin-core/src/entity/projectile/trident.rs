@@ -399,6 +399,9 @@ impl EntityBase for TridentEntity {
             _ => {}
         }
 
+        if !player.living_entity.fire_pickup_event(self, 1) {
+            return;
+        }
         let mut stack = self
             .item_stack
             .lock()
@@ -410,7 +413,7 @@ impl EntityBase for TridentEntity {
                 stack.item.id as i32,
                 1,
             );
-            player.living_entity.pickup(&self.entity, 1);
+            player.living_entity.show_pickup(self.get_entity(), 1);
             self.get_entity().remove();
         }
     }

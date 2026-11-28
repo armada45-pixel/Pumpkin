@@ -870,7 +870,7 @@ impl Mob for SulfurCubeEntity {
             return;
         }
         let living = &self.mob_entity.living_entity;
-        if !living.pickup(item.get_entity(), 1) {
+        if !living.pickup(item, 1) {
             return;
         }
         living.on_item_pickup(item);

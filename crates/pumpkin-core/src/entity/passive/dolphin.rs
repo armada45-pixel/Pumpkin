@@ -253,7 +253,7 @@ impl Mob for DolphinEntity {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .item_count;
-        if !living.pickup(item.get_entity(), u32::from(count)) {
+        if !living.pickup(item, u32::from(count)) {
             return;
         }
         living.on_item_pickup(item);

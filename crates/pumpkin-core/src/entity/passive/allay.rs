@@ -517,7 +517,7 @@ impl Mob for AllayEntity {
             })
         };
         let living = &self.mob_entity.living_entity;
-        if count == 0 || !living.pickup(item.get_entity(), u32::from(count)) {
+        if count == 0 || !living.pickup(item, u32::from(count)) {
             return;
         }
         living.on_item_pickup(item);

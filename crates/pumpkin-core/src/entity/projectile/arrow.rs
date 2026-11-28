@@ -1034,6 +1034,9 @@ impl EntityBase for ArrowEntity {
             }
         }
 
+        if !player.living_entity.fire_pickup_event(self, 1) {
+            return;
+        }
         // Try to insert an arrow into the player's inventory
         let item_stack = self
             .item_stack
@@ -1046,7 +1049,7 @@ impl EntityBase for ArrowEntity {
                 stack.item.id as i32,
                 1,
             );
-            player.living_entity.pickup(&self.entity, 1);
+            player.living_entity.show_pickup(self.get_entity(), 1);
 
             // Remove arrow entity after pickup
             self.get_entity().remove();
