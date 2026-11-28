@@ -30,10 +30,9 @@ impl JavaClient {
         };
 
         match result {
-            TeleportResult::Success => {}
-            // A confirm for an older teleport arrives when a newer one was sent before the client
+            // WrongId: a confirm for an older teleport arrives when a newer one was sent before the client
             // answered (two plugins teleporting at once). Vanilla ignores it and waits for the newest.
-            TeleportResult::WrongId => {}
+            TeleportResult::Success | TeleportResult::WrongId => {}
             // Two teleports in a row can reach the client newest-first; the older confirm then arrives
             // after the newest cleared the wait. Like vanilla, only a repeated confirm of the last id kicks.
             TeleportResult::NotTeleporting

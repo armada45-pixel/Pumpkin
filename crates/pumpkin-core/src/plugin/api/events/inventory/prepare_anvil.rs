@@ -34,7 +34,7 @@ pub struct PrepareAnvilEvent {
 
 impl PrepareAnvilEvent {
     #[must_use]
-    pub fn new(
+    pub const fn new(
         player: Arc<Player>,
         rename_text: String,
         repair_cost: u32,

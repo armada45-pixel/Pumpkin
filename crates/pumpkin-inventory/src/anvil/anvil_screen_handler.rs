@@ -99,8 +99,9 @@ impl Slot for AnvilResultSlot {
     }
 }
 
-/// Called with (computed cost, rename text, second input empty, current maximum cost) every time a result is
-/// computed; returns the maximum cost to use. Set by the host so plugins can raise the "Too Expensive!" limit.
+/// Called every time an anvil result is computed; returns the maximum cost to use.
+///
+/// Set by the host so plugins can raise the "Too Expensive!" limit.
 /// Arguments: cost, rename text, first input, second input, prepared result, current maximum cost.
 pub type AnvilPrepareHook =
     Arc<dyn Fn(i32, &str, &ItemStack, &ItemStack, &ItemStack, i32) -> i32 + Send + Sync>;
